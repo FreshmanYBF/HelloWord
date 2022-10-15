@@ -1,0 +1,77 @@
+
+空间配置器，总是隐藏在容器组件背后。
+	allocator不仅可以配置内存空间，还可以直接向硬盘取空间
+	
+内存分配考虑的问题：
+1、内存碎片
+2、多线程
+3、内存不足
+
+/*=========================================================	
+Chapter I  			空间配置器的标准接口
+=========================================================*/
+//主要包含三种类型：元素，指针，容量
+
+allocator::value_type		空间所存储的元素类型
+allocator::pointer 			原始指针类型
+allocator::const_pointer	
+allocator::reference
+allocator::const_reference
+allocator::size_type
+allocator::difference_type
+
+allocator::rebind			嵌套的 class rebind<U> 拥有唯一的成员other，是一个typedef，代表 allocator<U>
+
+
+1 成员函数
+
+pointer allocator::allocate(size_type n, const void * = 0);
+		配置空间，足以存储n个T对象。
+		第二个参数是个提示，实现上可能会利用它来增进区域性或完全忽略
+		
+void allocator::deallocate(pointer p, size_type n)
+		归还先前配置的空间
+
+size_type allocator::max_size() const
+		返回可成功配置的最大值
+
+void allocator::construct(pointer p, const T& x)
+		构造一个T对象
+		new((void*)p) T(x)
+		
+void allocator::destroy(pointer p)
+		销毁一个T对象
+		
+		
+/*=========================================================	
+Chapter II  		一级配置器和二级配置器
+=========================================================*/
+new 包含 （1）内存申请 （2）构造函数  两个步骤
+delete 包含 （1）析构函数  （2）内存释放  两个步骤
+
+allocator将这两个步骤分开
+	allocate, deallocate
+	construct, destroy
+		
+		
+1、SGI双层级配置器 
+（1）第一级配置器直接使用malloc()和free()
+（2）第二级配置器视情况采用不同的策略
+		当配置区块超过128bytes使用第一级配置器
+		当配置区块小于128bytes，使用memory pool(内存池)的分配凡是
+				维护一个链表，链表的节点是一个链表，不同的节点链表上存放这不同大小的内存块
+
+		union obj{
+			union obj * free_list_link;	//当为改指针分配一个管理的内存空间时
+										//同时可以设置其值指向另一个union obj
+			char client_data[1];
+		}
+		
+/*=========================================================	
+Chapter III  				内存池
+=========================================================*/
+
+SGI二级配置器维护了一个内存池
+1、内存池维护了一组内存块，分别是8、16、32....128
+2、每个节点是一个链表，链表的节点是同等大小的一个块
+
