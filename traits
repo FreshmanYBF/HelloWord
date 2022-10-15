@@ -1,0 +1,165 @@
+
+迭代器：提供一种方法，能够依序巡访某个聚合物所含的哥哥二元素，而又无需暴露该聚合物的内部表达式
+
+	迭代器将算法和容器粘连在一起
+
+/*=========================================================	
+Chapter I  			迭代器 smart pointer
+=========================================================*/
+
+迭代器行为类似指针，最重要的两个功能是dereference和member access
+即迭代器最重要的编程工作便是对operator *和operator ->进行重载工作
+
+
+
+
+
+	
+/*=========================================================	
+Chapter II  	 	为什么使用萃取器
+=========================================================*/
+
+问题1：
+	算法中需要声明一个变量，变量类型为迭代器所指对象的型别
+解决方案：
+	使用function template的参数推到机制
+	
+问题2：
+	算法中返回值为迭代器所指对象的型别
+解决方法：
+	在迭代器中声明内嵌型别
+	template <typename T>
+	class Iterator{
+		typedef T value_type;
+		
+	};
+	
+	template <typename I>
+	typename I::value_type func(I iter)
+	{	
+		return *iter;
+	}
+	
+问题3：
+	声明内嵌类型无法用在原生指针中，因为指针不是class type，如何解决
+解决方法：
+	模板偏特化，同时使用萃取器 —— 萃取器可以不用管模板的类型是否为class type，即其可以萃取出内置类型
+	解决了声明内置类型无法解决的问题
+	
+	//萃取器
+	template <class I>
+	struct iterator_traits{
+		typedef typename I::value_type value_type;
+	};
+	//萃取出class type的类型
+	template <class I>
+	typename iterator_traits<I>::value_type //如果 I 有 value_type 则使用I的 value_type
+	func(I ite){
+		return *ite;
+	}
+	//偏特化，萃取出内置类型
+	template <class T>
+	struct iterator_traits<T*>{
+		typedef T value_type;
+	};
+	//偏特化，萃取出剔除const
+	template <class T>
+	struct iterator_traits<const T*>{
+		typedef T value_type;
+	};
+	
+
+
+/*=========================================================	
+Chapter III  	 		萃取器
+=========================================================*/
+	
+迭代器常用的五种类型：value type, difference_type, pointer, reference, iterator_catagoly
+
+1、class type
+
+template <class I>
+struct iterator_traits{
+	typedef typename I::value_type value_type;
+	typedef typename I::reference reference;
+	
+	typedef typename I::pointer pointer;
+	typedef typename I::difference_type difference_type;
+	
+	typedef typename I::iterator_catagoly iterator_catagory;
+		迭代器被分为五类：Input Iterator，Output Iterator，Forward Iterator，Bidirectional Iterator，Random Access Iterator
+			强化关系 RAI > BI > FI > II = OI
+		使用类来表示五类迭代器，作用类型参数传递给迭代器
+			struct input_iterator_tag{};
+			struct output_iterator_tag{};
+			struct forward_iterator_tag: public input_iterator_tag{};
+			struct bidirectional_iterator_tag: public forward_iterator_tag {};
+			struct random_access_iterator_tag: public bidirectional_iterator_tag {};
+		（1）任何一个迭代器，其类型永远应该落在“该迭代器所隶属之各种类型中，最强化的那个”
+		（2）算法以算法所能接受之最低阶迭代器类型来为其迭代器型别参数命名
+		（3）使用继承的好处：消除“单纯传递调用的函数”，即当类型不匹配时会自动向上转移
+};	
+
+2、原生指针
+
+template <clas I>
+struct iterator_traits<T*>{
+	typedef T& reference;
+	
+	typedef T* pointer;
+	typedef ptrdiff_t difference_type;
+};
+	
+3、const pointer
+	
+template <clas I>
+struct iterator_traits<const T*>{
+	typedef const T& reference;
+	
+	typedef const T* pointer;
+	typedef ptrdiff_t difference_type;
+};	
+	
+
+	
+4、std::iterator
+
+template <class Catagory,
+			class T,
+			class Distance = ptrdiff_t,
+			class Pointer = T*,
+			class Reference = T&>
+struct iterator {
+	typedef T value_type;
+	typedef T& reference;
+	typedef Pointer pointer;
+	typedef Distance difference_type;
+	typedef Catagory iterator_catagory;
+};
+	
+实现自己的迭代器应该继承自它
+
+
+/*=========================================================	
+Chapter III  	 		萃取型别的特性
+=========================================================*/
+
+迭代器所指向的型别：是否具备non-trivial default ctor？是否具备non-trivial copy ctor，是否具备non-trivial assignment operator？
+					如果知道这些特性，就能够对与一些内存操作做出重载，存在这些特性的做特别处理
+					
+struct __true_type{};
+struct __false_type{};
+
+template <class type>
+struct __type_traits{
+	typedef __true_type this_dummy_member_must_be_first;	//
+	
+	typedef __false_type has_trivial_default_construct;
+	typedef __false_type has_trivial_copy_construct;
+	typedef __false_type has_trivial_assignment_operator;
+	typedef __false_type has_trivial_destructor;
+	typedef __false_type is_POD_type;
+};
+
+
+
