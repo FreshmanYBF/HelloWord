@@ -38,4 +38,94 @@ URL字符集：ASCII
 （2）字符限制
 一些字符不在定义的ASCII可打印字符集中，有些字符与某些因特网网关和协议产生混淆
 
+/*=========================================================	
+Chapter II  		  HTTP报文
+=========================================================*/
+
+起始行
+首部 ( 会给出一些与实体有关的信息, 例如Content-Type, Content-Length )
+报文实体
+
+1、CRLF
+每行以回车换行符结束——回车符 ASCII码13，换行符 ASCII码10
+	但是有的使用单个换行符作为终止，应用程序也应该能够解析
+由于历史原因，很多在没有实体的主体部分时，省略最后的CRLF，虽然这是不符合规范的，但是应用程序应该接受(历史遗留问题)。
+
+2、状态码
+（1）100~199	信息提示
+100 Continue			C端需要在Except首部中指定
+	C端Except首部携带100 Continue，等待接收到S端的100 Continue，收到它就会继续发送实体，但如果超时仍然未收到，则也要发送实体
+	S端如果在没有响应100 Continue前，就收到实体。那么它应该继续接受实体，然后返回最终的响应
+101 Switch Protocols 	C端需要在Update中指定
+	S端正在将协议切换成C端Update首部所列的协议 
+（2）200~299 成功
+
+（3）300~399 重定向
+S端响应首部中Location字段会指出重定向资源的URL
+
+（4）400~499 客户端错误
+405 Method Not Allowed
+406 Not Acceptable			C端说明可以接受什么类型的实体，S端不匹配的话则返回
+408 Request Timeout		
+412 Precondition Failed		C端发起了条件请求，且其中一个条件失败时使用了。C端使用Except首部发起条件请求
+417 Exception Failed 		请求的Expect请求首部包含一个期望，但服务器无法满足此期望时，使用此状态码
+
+（5）500~599 服务端错误
+
+3、首部
+（1）通用首部——请求和响应中均可用
+Trailer				如果报文采用了分块传输编码(chunked transfer encoding)方式，可以用该字段列出位于报文拖挂部分的首部集合
+Transfer-Encoding	对报文采用什么编码方式
+Update				想要“升级”使用的新版本或协议
+Via 				显示报文经过的中间节点（代理、网关）
+（2）请求首部
+Client-IP			C端IP地址
+From				客户端用户的E-mail地址
+Referer				提供了包含当前请求URI的文档的URL
+User-Agent			将发起请求的应用程序名称告诉S端
+
+Accept				C端的喜好和能力，告知S端。Accept 媒体类型；Accept-Charset 字符集；Accept-Encoding 编码方式；Accept-Language 语言
+
+Except				条件请求首部，C端为请求加上某些限制。If-Match 匹配标记；If-Modified-Since 指定某个日期后资源被修改过则响应该请求；If-None-Match 标记不匹配
+														 If-Range 对文档某个范围进行请求；If-Unmodified-Since 从某个日期开始，资源从未被修改过
+														 Range	范围请求
+
+Authorization		认证
+Cookie				客户端用它向服务器传送一个令牌——它并不是真正的安全首部，但确实隐含了安全功能
+Cookie2				说明请求端支持的cookie版本
+	
+（3）响应首部
+Age					响应持续时间
+Retry-After			如果资源不可用，在此日期或时间重试
+
+Accept-Range 		S端可接受的范围类型
+
+Set-Cookie			不是真正的安全首部，但隐含有安全功能；可以在C端设置一个令牌，一遍服务器对C端进行标识
+
+（4）实体首部——描述主体的长度和内容，或资源自身
+Allow 				可以对实体执行的请求方法
+Location			实际URL
+
+Content-Base
+Content-Encoding
+Content-Language
+Content-Location
+Content-MD5			主体的MD5校验和
+Content-Range		在整个资源中实体表示的字节范围
+
+ETag 				与此实体相关的实体标记
+Expires 	`		实体不再有效，要从原始的源端再次获取此实体的日期和时间
+Last-Modified 		这个实体最后一次修改的日期和时间
+
+（5）扩展首部
+首部可以分为多行，多出来的每行前面至少要有一个空格或制表符
+
+4、方法
+GET
+HEAD：响应报文只返回首部
+PUT
+POST：通常用来支持表单
+TRACE：请求可能穿过防火墙、代理、网关或其他一些应用程序，TRACE可以看到最后一战是否修改了原始报文。
+OPTIONS：请求Web服务器告知其支持的各种功能
+DELETE： 
 
