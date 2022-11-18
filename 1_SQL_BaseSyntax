@@ -1,0 +1,229 @@
+数据库：增删改查
+数据：增删改查
+
+四种基本数据类型
+	字符串
+	数值
+	日期
+	二进制
+
+=======================	
+	数据库增删改查
+=======================	
+
+1、创建数据库
+
+create database xxx
+
+2、删除数据库
+
+drop database xxx
+
+3、选择数据库
+
+use databaseName
+
+
+=======================	
+	表增删改查
+=======================	
+
+1、创建表
+
+create table Table_Name(
+				Column1 datatype,
+				Column2 datatype,
+				Column3 datatype,
+				...
+				ColumnN datatype,
+				primary key(one or more columns)
+			);
+
+2、查看表结构		
+
+desc Table_Name
+
+3、删除表 
+
+drop table Table_Name
+
+4、重命名表
+
+alter table Old_Table_Name rename to New_Table_Name;
+
+rename Old_Table_Name to New_Table_Name;
+
+
+5、修改表
+
+alter table 添加新字段 / 修改现有字段的名字 / 修改现有字段的类型 / 添加约束 / 删除约束
+//添加新的字段
+alter table Table_Name add Column_Name DataType
+//删除某个字段
+alter table Table_Name drop column Column_Name
+//修改字段类型
+alter table Table_Name modify column Column_Name DataType 
+//添加约束
+alter table Table_Name modify Column_Name DataType not null
+//添加unique约束
+alter table Table_Name add constraint xxx unique(Column1, Column2, ...)
+
+
+
+=======================	
+	表数据增删改查
+=======================	
+
+1、插入数据
+
+insert into Table_Name(Column1, Column2, Column3, ..., ColumnN)
+			values(Value1, Value2, Value3, ..., ValueN)
+			
+insert into Table_Name values(Value1, Value2, Value3, ..., ValueN)
+
+
+2、选取数据
+
+select Column1, Column2, ..., ColumnN from Table_Name where Conditions;
+													  order by
+													  group by 
+													  having —— 通过长group by联合使用，也可以和where一起使用
+子查询 —— 常用在where和from子句后边
+													  
+													  
+3、修改数据
+
+update Table_Name set Column1 = Value1, Column2 = Value2, ..., ColumnN = ValueN where Condition 
+
+4、删除数据
+
+delete from Table_Name where Condition;
+
+
+
+=======================	
+	表的数据列约束规则
+=======================	
+
+not null 			非空约束
+default				默认约束
+unique				唯一约束
+primary key 		主键
+foreign key 		外键
+check				检查性约束
+index				索引
+
+1、创建约束 
+
+可以在create table 或 alter table时来增加约束
+
+2、删除约束
+
+//删除所有约束
+alter table Table_Name drop constraint Table_Name 
+
+//删除主键约束
+alter table Table_Name drop primary key
+
+3、自动增长序列
+
+auto_increment —— 自动增长序列
+
+
+=======================	
+	索引
+=======================	
+
+1、创建索引 
+
+//针对某一/某些列创建索引
+create index Index_Name on Table_Name(column1, ...)
+
+
+2、删除索引
+
+alter table Table_Name drop index Index_Name 
+
+
+
+
+=======================	
+		表select join
+=======================	
+
+合并记录 —— 合并条件交集，根据join不同的类型返回对应的记录
+
+1、join
+
+将连个或多个表联合起来进行查询
+
+联合表时需要在每个表中选择一个字段，并对这些字段值进行比较，值相同的两条记录将合并为一条。
+
+联合表的本质就是将不同的表的记录合并起来，形成一张新的临时表（仅限于本次查询）
+
+select Table1.Column1, Table2.Column2... from Table1 join Table2 on Table1.Common_Column1 = Table2.Common_Column2
+
+2、不同的连接类型
+
+inner join 		只有当两个表都存在满足条件的记录时才返回   				取交集
+left join 		返回左表中的所有行										取交集 + 左表剩余记录
+right join 		返回右表中的所有行										取交集 + 右表剩余记录
+full join 		只要其中有一个表存在满足条件的记录，返回就行			
+self join		将一个表连接到自身，就像该表是两个表一样
+cross join 		交叉连接，从两个或多个连接表中返回记录集的笛卡儿积
+
+
+
+=======================	
+		表select union
+=======================	
+
+合并两个或多个 select 语句的结果集
+
+
+
+=======================	
+		视图
+=======================	
+
+视图：是给select查询出来的结果集合(临时表)起一个名字，放在数据库中供大家使用
+
+create view View_Name as select Column1, Column2, ... from Table_Name where Condition 
+
+
+=======================	
+		事务
+=======================	
+
+ACID —— automic，consistency，isolation，durability
+
+事务相关的SQL命令
+	begin 或 start transaction
+	commit
+	rollback
+	savepoint: 在事务内部设置回滚标记点 
+	release savepoint: 删除回滚标记点
+	rollback to: 将事务回滚到标记点
+
+一个事务要么提交，要么回滚
+
+
+=============================	
+		临时表, 克隆表
+=============================	
+//临时表
+create temporary table Table_Name(Column1, Column2, ...)
+
+//克隆表
+克隆的步骤：
+（1）show create table xxx 获取创建表xxx的create table语句
+（2）将create table xxx语句中的表名改成新表的名字，然后执行该语句
+（3）使用insert into 和 select命令复制数据
+
+
+=============================	
+		SQL注入简介
+=============================	
+
+通过网页输入框将恶意SQL代码提交给服务器
+
