@@ -1,0 +1,179 @@
+
+https://developer.android.google.cn/reference/android/app/Service?hl=en#developer-guides
+
+
+1、什么是Service
+
+2、Service Lifecycle 服务的声明周期
+
+3、Permissions 权限
+
+4、Process Lifecycle 处理周期
+
+5、Local Service Sample 本地服务示例
+
+6、Remote Messenger Service Sample 远程信息发送服务器示例
+
+
+总结：
+	1、服务通过 onCreate 创建，onStartCommand 在创建时被调用
+	2、通过 stopService 和 stopSelf 会被停止
+	3、通过 bindService 可以绑定服务
+	4、在 manifest 中使用 <service> 声明自己的服务，使用 <uses-permission> 声明使用其他应用的服务(start, stop, bind)
+	
+	
+
+
+======================================
+Character I		 What is a Service?
+======================================
+1、服务不是什么
+	服务不是一个分离的进程，它是应用的一部分
+	服务不是一个线程。并不是脱离主线程的distach线程
+	
+2、服务是什么
+	一种机制(设施)
+		服务工作在后台，
+		类似与调用Context.startService()
+		要求系统为这个服务安排工作，直到服务被显式地停止
+	一种机制(设施)
+		应用想向外(其他应用)提供一些功能，
+		类似于调用Context.bindService()，
+		允许服务建立长连接以便与其交互
+
+3、服务
+
+当服务组件被创建时，系统会在main线程中通过调用 onCreate() 来实例化这个服务以及其他的一些回调
+这取决于服务是如何实现它的行为的
+
+注意，因为服务的机制很简单，但是你可以实现复杂的交互
+	比如创建本地服务
+	或者使用AIDL实现远程调用服务
+	
+======================================
+Character II	Service Lifecycle
+======================================
+
+服务可以被系统运行的两个原因：
+	如果调用Context.startService，
+		系统创建服务(onCreate)，
+		并调用onStartCommand(Intent, int, int)——参数有应用/调用者提供
+		
+		直到Context.stopService被调用或者stopSelf()被调用
+		注意：startService的调用不会被叠加，所有无论startService被调用多少次
+			stopService()的调用就会停止服务
+		服务可以使用stopSelf(int)方法确保服务不会被停止直到Intent被执行完毕
+		
+	对于已启动的服务，根据onStartCommand()的返回值，它们可以决定使用什么模式运行
+		START_STICKY —— 用于服务需要显式地启动和停止
+		START_NOT_STICKY/START_REDELIVER_INTENT —— 用于仅在处理发送给它们的任何命令时应保持运行的服务
+	
+	客户端使用 Context.bindService() 来与服务维持一个永久连接
+		bindService，如果服务还未运行，则调用onCreate，但是不会调用onStartCommand
+		调用方将会收到从onBind(Intent)返回的 IBinder 对象，允许调用方去调用这个服务
+		只要连接不断，服务会持续运行。IBinder一般用于复杂的AIDL接口
+	
+	一个服务既可以被启动，也可以被连接绑定。
+		在这种情况下，只要服务被启动或者有一个/多个连接使用Context.BIND_AUTO_CREATE标志绑定到这个服务
+		服务就会持续运行
+		当服务的 onDestory() 方法被调用时，服务就会被终止
+		
+
+======================================
+Character III	Permissions
+======================================	
+
+1、使用 manifest 声明服务使用权限
+（1）在 manifest 中声明 <service> 标志
+	就可以全局使用Service了
+
+（2）其他应用需要在自己的 manifest 中
+	使用 <uses-permission> 元素来申请 start, stop, bind 到服务的权限
+
+2、声明临时权限 
+
+当使用Context.startService(Intent)时，可以设置
+	Intent.FLAG_GRANT_READ_URI_PERMISSION
+	Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+	在Intent上，这个标志临时赋予服务权限使用Intent中特殊的URIs
+		调用Intent的 setFlags 方法进行设置
+	权限会维持到服务调用 stopSelf 或 服务完全停止
+	这种机制可以赋予权限给那些没有要求权限保护的服务，以及完全隐藏的服务
+
+除此之外，服务可以保护私人的IPC调用权限
+	通过调用 ContextWrapper.checkCallingPermission(String) 方法执行调用实现
+
+权限和安全
+	Android的安全功能
+		Anroid应用沙盒，将应用数据和代码执行与其他应用分隔开来
+		一个应用框架，可稳健实现常见的安全性功能 —— 加密，权限和安全IPC
+		ASLR，NX，ProPolice，safe_iop，OpenBSD dlmalloc，OpenBSD calloc和Linux mmap_min_addr等多项技术，可减低与常见内存管理错误相关的风险
+		加密的文件系统
+		用户授权的权限
+		应用定义的权限 —— 可针对各个应用分别控制应用数据
+		
+	存储数据
+		内部存储
+		外部存储 —— 外部存储设备上创建的文件不受任何读取和写入权限限制。使用 Security 库可以实现安全读取和写入。处理来自外部的数据需要执行 ” 输入验证 “
+		内容提供程序 —— 进程共享数据。可以为其他应用提供
+	
+3、Process Lifecycle
+
+安卓系统尝试保持服务的运行
+ 	当内存不足需要终止现有进程时，托管服务的进程的优先级将按照以下可能性排列
+		（1）当前服务正在调用 onCreate()，onStartCommand，onDestroy()方法 
+				托管进程将是一个前台进程，确保改代码可以不被终止
+		（2）如果服务被启动，它的托管服务被认为比可见的服务重要性低，但是比不可见的服务重要性高
+				这种情况下，只有内存比较紧张的时候可能会杀掉这个服务
+				事实上，一个长期运行的服务会增加被杀掉的可能性，如果启动太长时间，则一定会被杀死
+				但是会在合适的时间重新启动
+		（3）如果有client绑定到这个服务，这个服务的托管进程的重要性不亚于最重要的client
+				如果client对于用户是可见的，则服务对于用户也应该是可见的
+				可以通过
+					Context#BIND_ABOVE_CLIENT
+					Context#BIND_ALLOW_OOM_MANAGEMENT
+					Context#BIND_WAIVE_PRIORITY
+					Context#BIND_IMPORTANT
+					Context#BIND_ADJUST_WITH_ACTIVITY
+		（4）一个启动的服务使用 startForeground(int, android.app.Notification) 改变服务状态为前台服务
+				前台服务：系统认为是用户关心的，并且不会称为低内存时被杀掉的服务
+
+以上说明，大部时间，你的服务是在运行的
+	系统存在巨大的内存资源压力时，可能会被杀死
+	如果因此被杀死，系统之后会尝试重启服务
+	
+	如果实现 onStartCommand() 来调度异步或在另一个线程中完成工作
+	那么您可能希望使用 START_FLAG_REDELIVERY 返回值，让系统为您重新传递一个 Intent 
+	以便在处理服务时服务被终止时不会丢失该Intent
+				
+在其他应用组件会提供整个活动(process)的重要性 —— 比如Activity
+	
+
+	
+4、Local Service Sample 
+	
+最普遍的服务的用法是作为辅助组件和其他组件一样
+	所有组件运行在同一个 process 中，除非使用特别的状态声明
+
+作为组件运行在同一个 process 的方式
+	你可非常简单的实现组件之间的交互
+	clients 可以将从中接收的IBinder转为服务发布的具体类
+
+编写好Service后，可以使用bindService和startService来启动服务
+	bindService —— 与Activity绑定在一起，如果Activity销毁，则服务停止
+	startService —— 启动后在后台运行，并且会调用 onStartCommand方法
+
+5、Remote Messenger Service Sample
+
+	存在两种模式，服务端发布自己的服务，客户端来请求服务
+				  服务端主动发送消息给客户 —— 客户已经注册到服务端，订阅服务
+
+如果你需要一个服务 —— 可以与远程进程执行复杂的通信，可以使用 Messenger 而不是 AIDL 文件
+
+服务使用 Messenger 作为客户端接口，服务发布一个 Messenger 给内部的 Handler，当被绑定的时候
+	服务端向外发布自己的 Messenger，Messenger中绑定了处理消息的Handler
+		当客户端发送Message到Messenger时，服务器处理这个Message
+		
+当服务发布出去后，客户端可以 绑定 到这个服务，并且发送消息给这个服务
+	当然也允许客户端注册这个服务，并接收服务发送的消息
+	
