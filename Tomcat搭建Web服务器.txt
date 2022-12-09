@@ -1,0 +1,129 @@
+1、Tomcat
+
+Tomcat是一个java执行程序，需要java.exe来执行
+
+java.exe在加载字节码文件的时候需要一个路径，告知java.exe去哪里寻找这些字节码 —— CLASSPATH
+
+===================================================
+		Tomcat启动日志分析
+===================================================
+09-Dec-2022 13:54:34.448 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log Server.服务器版本: Apache Tomcat/10.0.27
+09-Dec-2022 13:54:34.462 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 服务器构建:        Oct 3 2022 14:18:31 UTC
+09-Dec-2022 13:54:34.464 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 服务器版本号:      10.0.27.0
+09-Dec-2022 13:54:34.464 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 操作系统名称:      Windows 10
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log OS.版本:           10.0
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 架构:              amd64
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log Java 环境变量:     C:\Program Files\Java\jdk1.8.0_151\jre
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log Java虚拟机版本:    1.8.0_151-b12
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log JVM.供应商:        Oracle Corporation
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log CATALINA_BASE:     D:\apache-tomcat-10.0.27
+09-Dec-2022 13:54:34.465 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log CATALINA_HOME:     D:\apache-tomcat-10.0.27
+09-Dec-2022 13:54:34.473 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Djava.util.logging.config.file=D:\apache-tomcat-10.0.27\conf\logging.properties
+09-Dec-2022 13:54:34.473 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Djava.util.logging.manager=org.apache.juli.ClassLoaderLogManager
+09-Dec-2022 13:54:34.473 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Djdk.tls.ephemeralDHKeySize=2048
+09-Dec-2022 13:54:34.473 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Djava.protocol.handler.pkgs=org.apache.catalina.webresources
+09-Dec-2022 13:54:34.473 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Dignore.endorsed.dirs=
+09-Dec-2022 13:54:34.473 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Dcatalina.base=D:\apache-tomcat-10.0.27
+09-Dec-2022 13:54:34.474 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Dcatalina.home=D:\apache-tomcat-10.0.27
+09-Dec-2022 13:54:34.475 信息 [main] org.apache.catalina.startup.VersionLoggerListener.log 命令行参数：       -Djava.io.tmpdir=D:\apache-tomcat-10.0.27\temp
+09-Dec-2022 13:54:34.562 信息 [main] org.apache.catalina.core.AprLifecycleListener.lifecycleEvent 使用APR版本[1.7.0]加载了基于APR的Apache Tomcat本机库[1.2.35]。
+09-Dec-2022 13:54:34.562 信息 [main] org.apache.catalina.core.AprLifecycleListener.lifecycleEvent APR功能：IPv6[true]、sendfile[true]、accept filters[false]、random[true]、UDS [true]。
+09-Dec-2022 13:54:34.581 信息 [main] org.apache.catalina.core.AprLifecycleListener.initializeSSL OpenSSL成功初始化 [OpenSSL 1.1.1q  5 Jul 2022]
+09-Dec-2022 13:54:35.103 信息 [main] org.apache.coyote.AbstractProtocol.init 初始化协议处理器 ["http-nio-8080"]
+09-Dec-2022 13:54:35.133 信息 [main] org.apache.catalina.startup.Catalina.load 服务器在[852]毫秒内初始化
+09-Dec-2022 13:54:35.167 信息 [main] org.apache.catalina.core.StandardService.startInternal 正在启动服务[Catalina]
+09-Dec-2022 13:54:35.167 信息 [main] org.apache.catalina.core.StandardEngine.startInternal 正在启动 Servlet 引擎：[Apache Tomcat/10.0.27]
+09-Dec-2022 13:54:35.178 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory 把web 应用程序部署到目录 [D:\apache-tomcat-10.0.27\webapps\docs]
+09-Dec-2022 13:54:35.478 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory Web应用程序目录[D:\apache-tomcat-10.0.27\webapps\docs]的部署已在[297]毫秒内完成
+09-Dec-2022 13:54:35.478 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory 把web 应用程序部署到目录 [D:\apache-tomcat-10.0.27\webapps\examples]
+09-Dec-2022 13:54:35.979 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory Web应用程序目录[D:\apache-tomcat-10.0.27\webapps\examples]的部署已在[500]毫秒内完成
+09-Dec-2022 13:54:35.979 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory 把web 应用程序部署到目录 [D:\apache-tomcat-10.0.27\webapps\host-manager]
+09-Dec-2022 13:54:36.017 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory Web应用程序目录[D:\apache-tomcat-10.0.27\webapps\host-manager]的部署已在[38]毫秒内完成
+09-Dec-2022 13:54:36.017 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory 把web 应用程序部署到目录 [D:\apache-tomcat-10.0.27\webapps\manager]
+09-Dec-2022 13:54:36.052 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory Web应用程序目录[D:\apache-tomcat-10.0.27\webapps\manager]的部署已在[35]毫秒内完成
+09-Dec-2022 13:54:36.052 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory 把web 应用程序部署到目录 [D:\apache-tomcat-10.0.27\webapps\ROOT]
+09-Dec-2022 13:54:36.074 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory Web应用程序目录[D:\apache-tomcat-10.0.27\webapps\ROOT]的部署已在[22]毫秒内完成
+09-Dec-2022 13:54:36.074 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory 把web 应用程序部署到目录 [D:\apache-tomcat-10.0.27\webapps\TMP-JustForCopy]
+09-Dec-2022 13:54:36.097 信息 [main] org.apache.catalina.startup.HostConfig.deployDirectory Web应用程序目录[D:\apache-tomcat-10.0.27\webapps\TMP-JustForCopy]的部署已在[23]毫秒内完成
+09-Dec-2022 13:54:36.100 信息 [main] org.apache.coyote.AbstractProtocol.start 开始协议处理句柄["http-nio-8080"]
+09-Dec-2022 13:54:36.139 信息 [main] org.apache.catalina.startup.Catalina.start [1005]毫秒后服务器启动
+
+1、启动过程分析
+
+
+2、日志设置
+
+===================================================
+		Tomcat webapps目录结构分析
+===================================================
+
+webapps 
+	docs: 存放页面需要引用的文档
+	examples: 存放示例，可以知道使用者编程
+	host-manager: 主机管理者, 具体怎么配置还不知道
+				默认情况下只能由运行tomcat的机器下访问 —— 意思是可以改成远程登录访问吗？
+				可以通过修改 Host Manager's content.xml 来修改这一限制
+				
+				在 conf/tomcat-users.xml中做一些修改，这个文件必须包含允许使用webapp的凭证
+				举个例子：
+					添加  admin-gui 角色，使用 name="tomcat" passwd="secret" 
+						<role rolename="admin-gui"/>
+						<user username="tomcat" password="secret" roles="admin-gui"/>			
+	manager: 管理者
+			在 conf/tomcat-users.xml 中做一些修改
+			举个例子：
+				添加 manager-gui 角色，name="tomcat" password="secret" 
+					<role rolename="manager-gui"/>
+					<user username="tomcat" password="secret" roles="manager-gui"/>
+			manager-gui: 允许访问 HTML GUI 和状态页面
+			manager-script: 允许访问 text interface(脚本)和状态页面
+			manager-jmx: 允许访问 JMX proxy和状态页面
+			manager-status: 只允许访问状态页面
+	ROOT：根目录
+		存放的是使用 localhost:8080 访问时显示的页面，
+		由目录中的 index.jsp 生成
+
+
+PS:
+	.css文件: 对网页元素进行修饰
+	.jsp文件: JavaServer Pages，动态网页技术标准，即.jsp文件可以用来生成.html文件
+			  根据请求内容，动态地生成HTML、XML或其他格式文档的Web网页，然后返回给请求者
+			  JSP技术以Java语言作为脚本语言，为用户提供HTTP请求提供服务
+			  
+			  JSP将Java代码和特定变动内容嵌入到静态的页面中，实现以静态页面为模板，动态生成其中的部分内容
+			  JSP文件在运行时会被其编译器转成更原始的Servlet代码
+				JSP编译器可以把JSP文件编译成用Java代码编写的Servlet				
+				然后再由Java编译器来编译成能更快执行的二进制机器码
+				也可以直接编译成二进制码
+	.js文件: JavaScript 编程语言, Web页面脚本
+	.svg文件: 图形文件格式
+	
+web.xml
+	在web.xml中可以注册自己需要使用的Servlet，并把Servlet映射到URL上
+		<servlet>
+			<servlet-name></servlet-name>
+			<servlet-class></servlet-class>
+		</servlet>
+		<servlet-mapping>
+			<servlet-name></servlet-name>
+			<url-pattern></url-pattern>
+		</servlet-mapping>
+
+==========================
+		ROOT目录
+==========================
+
+
+
+============================
+		examples目录
+============================
+
+在examples的WEB-INF/classes目录下添加新的类，并在WEB-INF/web.xml目录下完成类的注册和[类, URL]的映射，即可在浏览器访问这个类
+
+1、HttpServletRequest
+
+getHeaderNames() 获取所有HTTP请求首部 —— 有没有响应首部？
+getParameterMap() 获取参数映射 —— 似乎是用于 form-data的
+
+
