@@ -1,0 +1,164 @@
+	C        -> Client Hello -> 	     	  				S
+	C 		  					<- Server Hello <-			S
+	C 		  					<- Certficate   <-      	S
+	C         					<- ServerHelloDone <-  		S
+	C        -> ClientKeyExchange -> 						S
+	C        -> ChangeCipherSpec ->        					S
+	C        -> Handshake Finished -> 						S
+	C 		  					<- ChangeCipherSpec <-  	S
+	C    	  					<- Handshake Finished <-    S
+	C        -> Application Data -> 						S
+	C   	  					<- Application Data <- 		S 
+	C        -> Alert: wraing, close ->    					S
+
+SSL记录 —— 收发的基本单位
+			对数据进行加密，生成记录；对记录进行解密
+			
+	要发送的数据类型有四种
+				握手
+				加密套件
+				应用数据
+				警示
+
+	SSL记录格式
+			未加密的SSL记录
+				|	类型	|	版本	|	长度	|	数据	|
+			
+			加密的SSL记录
+				|	类型	|	版本	|	长度	|	数据	|	HMAC	|	填充	|	填充长度	|
+					
+					（1）HMAC，消息验证码，保证消息的完整性。即数据摘要
+					（2）加密。对 数据 + HMAC + 填充 + 填充长度  进行加密。填充的值为 “填充长度”
+					
+
+1 握手消息
+
+	1.1 ClientHello消息
+	
+		ClientHello消息结构
+			|	版本	|	随机数	|	会话ID	|	加密套件列表	|	压缩方法列表	|
+			
+				（1）版本：主，从。表示SSL当前版本
+				（2）随机数：客户端随机数，由 时间 + 随机字节 组成，32个字节 = 4 + 28。4字节为秒数
+				（3）会话ID：变长字段。 长度 + ID
+				（4）加密套件：变长字段。长度(2) + 加密套件。一个加密套件用两个字节表示，加密套件定义了 “密钥交换算法”、“密钥交换中使用的签名算法”、“加密算法”、“消息摘要算法”
+				（5）压缩方法列表：长度 + 压缩算法。每个压缩算法用一个字节表示。
+	
+	1.2 ServerHello消息
+		
+		ServerHello消息结构
+			|	版本	|	随机数	|	会话ID	|	所选加密套件	|	所选压缩方法	|
+			
+				（1）会话ID。如果客户端在ClientHello中请求恢复某一会话，服务器在其会话缓冲中进行查找，如果找到而且可恢复，则恢复会话
+				（2）所选加密套件。2字节。从ClientHello发过来的加密套件中，选择一个其支持的加密套件，并通过此字段告诉客户端
+				（3）所选压缩方法。1字节。
+	
+	1.3 Certification消息 
+	
+		服务器发送整数给客户端，客户端根据证书验证服务器身份
+		
+		证书中携带关于服务器的公钥信息，是后面对有关消息内容进行加密或进行验证的依据
+		
+		SSL协议中使用的是 X.509 V3 格式的证书文件
+		
+		根证书：CA自己给自己签发的自签名证书
+		
+		证书链：CA给CA1签发证书Cert1，CA1给CA2签发证书Cert2，CA2给Customer1签发证书CertCus。
+				当Customer2需要验证Customer1的身份时，需要验证CertCus，Cert2，Cert1，CA的分证书，才能确定Customer1的身份。
+				CertCus->Cert2->Cert1->CA的根证书，就组成了一个条证书链
+					Customer1不需要发送整个证书链，只需要Customer2拥有的可信任的证书能成功构造这条证书链就行
+					
+		Certification消息结构
+			|	消息长度	|	第一份证书长度	|	第一份证书内容	|	....	|	第n份证书长度	|	第n份证书内容	|
+			
+				（1）第一份：服务器自己的证书
+				（2）第二份：给该服务器颁发证书的CA的证书
+				（3）......
+				
+	1.4	ServerHelloDone消息
+	
+		空消息
+		
+		ServerHelloDone消息消息结构
+			struct {} ServerHelloDone;
+			即只有类型，版本，长度
+			
+	1.5 ClientKeyExchange消息
+		
+		当加密套件已经协商完毕时，就要协商加密所使用的密钥了
+		
+		ClientKeyExchange消息结构
+			|	长度	|	版本	|	随机数	|
+				
+				（1）PreMasterSecret(版本 + 随机数)：PreMasterSecret用于MasterSecret的计算
+						版本：客户端版本，2字节
+						随机数：46字节
+					PreMasterSecret明文长48字节，使用服务器证书中所携带的RSA公钥对其进行加密，然后再传输
+					
+					加密后的PreMasterSecret称为EncryptedPreMasterSecret。
+					
+					
+				（2）长度：密文的长度
+					
+	1.6 ChangeCipherSpec消息
+
+		改变加密说明
+		
+		在会话恢复的握手情况下，是服务器首先向客户端发送，其余情况下则是客户端先发送。
+		
+		消息内容只有一个值为1的字节
+			ChangeCipherSpec告诉接收方，接下来的消息将采用之前协商的加密套件和密钥进行通信
+			
+		通信双方独立维护自己的读写状态，各有各的一套密钥资料
+		
+			服务器读状态与客户端写状态对应，服务器写状态与客户端读状态对应
+			
+	1.7 Finished消息
+	
+		Finished消息是第一条使用新的加密参数进行加密传输的消息，它的作用是使双方能够确认没有任何握手消息被篡改过
+		
+		Finished消息内容
+			对所有握手消息和计算出来的MasterSecret进行消息摘要，并向另一方发送此摘要
+			另一方在本地进行相同的计算，与接收到的结果一致，则握手过程没有被篡改
+			
+2 服务器证书中的公钥 和 通信加密密钥
+
+	服务器证书中的公钥用于对 PreMasterSecret 进行加密
+	
+	密钥交换算法 密钥交换中使用的签名算法
+	
+	加密算法 —— 加密密钥和加密向量
+	
+	消息摘要算法 —— 
+	
+	密钥导出
+		计算MasterSecret
+		计算密钥分组(Key block)
+		进行密钥分界
+		
+	HMAC：Keyed-Hash Message Authentication Code
+	
+	PRF：Pseudo-random Function 伪随机数
+	
+	2.1 密钥导出
+	
+		获得了PreMasterSecret后，通信双方需要遵循相同的方法来将所共享的参数(PreMasterSecret, 客户端随机数, 服务端随机数)扩展成给自的加密密钥资料，用于完成加密、认证等任务
+		
+		2.1.1 计算MasterSecret
+		
+			SSL V3.0中直接使用MD5和SHA1进行计算
+			TLS V1.0中使用了PRF来计算
+
+		2.1.3 Key block的计算
+		
+			基于MasterSecret进行
+			
+		2.1.3 密钥分解 
+		
+			从Key block中分离出各部分的加密资料
+				客户端MAC(Message Authentication Code)
+				服务端MAC
+				客户端密钥
+				服务端密钥
+				客户端加密向量
+				服务端加密向量
