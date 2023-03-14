@@ -1,0 +1,258 @@
+网络通信接口
+	异步	零拷贝
+	
+		个人猜想(实现)
+			存在一个比较大的，预先申请的内存缓冲区，用于存放网络IO
+			网络socket映射到这个内存缓冲区中，进行异步的读取
+			这个缓冲区就像B树一样，叶子节点存放着数据，socket作为索引
+			
+		总结：
+			事件驱动机制
+				信号 —— 昂贵且不可靠
+				轮询 —— 不是通用的解决方案
+				线程 —— 成本高，扩展性差(不适用于大量事件)
+			DMA内存管理
+				锁定避免页面被删除，换出
+				分配和回收，避免DMA缓冲区碎片化
+			
+论文《The Need for Asynchronous, Zero-Copy Network I/O》Ulrich Drepper 		Red Hat, Inc.
+	URL：https://akkadia.org/drepper/newni.pdf
+
+翻译：
+
+	摘要
+		当今操作系统提供的网络接口严重限制了网络程序的效率
+		网络数据从内核缓冲区到用户缓冲区至少复制了一次
+		本文将阐述这些问题，并介绍一些可能的解决方案
+	
+	
+	
+	1 介绍
+		过时的网络编程接口，难以适应如今高吞吐量，高扩展性的要求
+		CPU与内存子系统之间的接口难以处理大量数据
+		
+		异步网络接口紧迫的需求，异步是为了避免不必要的数据拷贝
+							同时，异步可以避免网络拥塞，以及由于网络缓冲区满了导致的网络重传 —— 因为异步可以使得网络缓冲区提早释放
+							
+		目前POSIX AIO函数无法提供上述功能 —— 缓冲区的预发布只能在有限范围内进行；事件处理机制过于昂贵
+		
+		接下来我将介绍这些不同的接口
+			event handling
+			physical memory handling
+			asynchronous network interfaces
+			
+			事件机制
+				select/poll
+					这些接口目前还够用，还可以映射到非文件描述符的事件(消息队列，futexes等)
+					使用这种方式，事件处理有一个统一的内部循环
+				
+			物理内存管理
+				网络设备只寻址物理地址，即对虚拟地址不感兴趣
+				内核如何处理物理内存区域
+				
+		使用事件机制和物理内存处理可以完整的异步网络处理接口
+	
+
+	
+	2 已有的实现
+		网络堆栈的架构在这10-20年里都没有太大变化
+				receiving				sending
+				read()					write()
+				recv()					send()
+				recvfrom()				sendto()
+				recvmsg()				sendmsg()
+			这些接口都是同步的，虽然非阻塞时，没数据会立即返回，但这不是真正的异步
+			因为数据没有异步传送到用户级
+		
+		Linux提供了一种异步模式(sockets, pipes, FIFOs)
+			如果文件描述符有O_ASYNC标志，read()和write()会立即返回，当真正完成之后，内核会发送信号
+				receiving				sending
+				read()					write()
+				aio_read()				aio_write()
+							lio_listio()
+			使用这些接口，可以在一个或多个文件描述符上提交大量输入和输出请求
+			当数据可用时，读写请求就被响应
+			没有特定的顺序保证，但是请求可以与相关的优先级绑定
+		
+		异步方式
+			最大的难题是 “程序必须能够找出何时处理提交的请求”
+			
+			POSIX定义了三种模式
+				SIGEV_SIGNAL
+					通过向进程发送指定信号来通知完成
+					哪个线程接收信号由内核通过查看信号掩码来确定
+						这个意思是每个线程维护一个异步socket
+					这种方式使得那些动态库无法实现实现改机制
+				SIGEV_THREAD
+					通过创建执行指定函数的线程来通知完成
+				SIGEV_NONE
+					不通知，通过aio_error()接口查询请求的状态
+			
+		所有的I/O接口都有一些共同的问题：
+				调用者提供缓冲区，接收的数据存储在缓冲区中
+					网络数据是异步到达的，大部分超出了程序的控制范围
+					输入的数据必须存储在某处，否则只能丢弃
+					为了避免复制，必须在数据到达之前让用户的缓冲区是可用的
+						这就意味着
+							read()和recv()这样的接口，在数据到达之前就要调用
+							aio_read()和lio_listio()可以预发布多个缓冲区
+								难点在与接下来的操作，让数据到达是，可以使用POSIX的三种模式
+								但是这三种模式，要么基于轮询，要么分量太重(创建线程)
+								当每秒发送1000个信号时，这些模式无法适应
+					
+						另一个难题是：对于不可靠协议，接收后到达的包更有价值
+				
+				调用者可以为内核的输入和输出缓冲区提供任意内存区域
+					通常情况下没有问题，但是如果网络硬件需要直接把数据传输到指定的内存区域(DMA)，则程序需要使用指定的内存
+						DMA直接使用RAM而不是CPU传递数据
+							使用DMA除了特定的内存区域限制
+							最大的难点是 内存中必须一直保存这个缓冲区，直到使用
+							由于操作系统可能会把内存页给其他进程使用，如果网络I/O请求等待过程中出现这个问题，则DMA会访问到用于其他途径的RAM
+							这意味着当缓冲区用于DMA时，它们不能从RAM中移出，必须上锁
+							可以通过mlock()实现，这是一个特权操作(用于内核)
+		
+		必须要解决的几个问题
+				
+			（1）非特权程序可以使用DMA就绪内存
+			（2）创造一个高效的事件处理机制，可以处理大容量事件
+			（3）创建一个I/O接口，可以使用DMA就绪内存和新的事件处理机制
+								
+			OpenGroup一个工作组在指定这种规范，网址
+				http://www.opengroup.org/icsc/
+				但是他们的解决方案还没得到实施，仍然存在问题
+				
+		
+	
+	3 Memory Handling
+	
+		磁盘和网卡可以在DMA的帮助下，不通过CPU传输数据
+			
+		为了确保DMA访问使用正确的缓冲区，必须防止交换目标页面
+			使用mlock()实现
+			内存锁定可能会耗尽操作系统可用的内存，同时内存锁定是特权操作
+				即要实现对有限内存进行锁定，并让非特权进程具备权限操作
+			有的锁定最小粒度为 物理页
+				此时锁定一个小对象就会束缚整个页面
+				
+		一种可能的方式是让内核自己按需完成锁定，而不是应用程序中进行锁定
+
+		把DMA缓冲区分配延迟到用户级，可以使用mmap()和mprotect()来管理
+			这些内存区域中，程序可以分割出单独的缓冲区，从而减轻锁定许多仅部分作为缓冲区的页面的问题
+			
+		使用mlock()有一个缺陷：页面会一直锁定，直到被解锁或取消映射
+			但是DMA方式只需要页面在有I/O请求的时候被锁定
+			
+		内核总是知道网络I/O请求何时挂起，理论上内核可以根据请求锁定页面，为此必须对页面进行特别标记
+		
+		对内核的一个相对较小的更改可以这样优化：	
+			mmap()传递一个新的flag MAP_DMA，内核就会知道缓冲区的用途。
+			它可以跟踪页面的用户，并避免锁定页面
+				MAP_DMA可以帮助处理fork()的影响
+					POSIX规范要求子进程没有内存锁定，另一方面，文件描述符是继承的
+						这样就要在首次使用内存前重新锁定内存
+					使用MP_DMA flag可以让子进程在第一次使用内存时自动锁定
+			仅此一项功能可能会限制系统的性能
+				当I/O请求挂起时，内核必须时钟确保内存被锁定
+					程序员对语义有更深入了解的，知道哪些内存区域被使用了更长的时间
+					这样显示锁可能比内核执行的隐式锁更何时
+			会导致碎片化
+				为了解决碎片化的问题需要定义分配和回收的接口
+				int dma_alloc(dma_mem_t *handlep, size_t size, unsigned int flags);
+				int dma_free(dma_mem_t handle, size_t size);
+				
+	4 Event Handling 
+
+		需要一种全新的事件通知机制，我们不能使用与套接字或文件描述符同步操作相同的机制
+			如果数据可用或发送完了，并不意味着异步发布的请求已经完成
+			
+		epoll接口的缺点
+			每次请求都必须注册文件描述符，然后再注销
+			这个开销太大，同时，文件描述符在内核中具有一定的成本，因此数量有限
+			
+		因此需要一种用于承载许多请求的通知总线
+			类似netlink的机制
+				netlink套接字接收所有侦听器的广播流量
+				每个进程都必须过滤出它感兴趣的数据
+				广播使netlink套接字对事件处理毫无吸引力
+					巨大通知量，不必要的唤醒开销
+			如果过滤被认为不是可行的实现要求
+				那么每个进程都可以创建多路的，独立的事件通道
+				每个通道可以承载来自多个源的任意多的通知事件
+				
+		事件不仅仅只是一个脉冲，他必须传递一些信息
+			必须识别事件请求，通常认为最好允许程序员添加附加信息，一个指针就足够了
+				因此事件数据结构可以具有固定长度
+				如果事件结构的传输将使用套接字实现，则可以使用SOCK_SEQPACKET类型
+		
+			typedef struct event data{
+				enum {
+					event type aio,
+					event type msg,
+					event type sig
+				}ev_type;
+				
+				union{
+					aio_ctx_t ev_aio;
+					mqd_t ev_msg;
+					sigevent_t ev_sig;
+				}ev_un;
+				ssize_t ev_result;
+				int ev_errno;
+				void *ev_data;
+			}event_data_t;
+			
+			包括引入新的协议族 PF_EVENT
+			
+			int etd = socket(PF_EVENT, SOCK_SEQPACKET, 0);
+			
+			int ev_send(); int ev_sendto(); int ev_sendmsg(); int ev_recv(); int ev_recvfrom(); int ev_recvmsg();
+
+		
+		使用上述事件通道网络接口
+			内核不允许事件队列占用任意数量的内存，同时排队的事件数量必须有上限
+			通道上事件数量可能很高，这种情况下，所有read()/recv()调用开销可能是一个限制因素
+			为了实现用户级可见事件缓冲区，事件处理接口
+				ec_t ec_create();
+				int ec_destroy();
+				int ec_to_fd();
+				int ec_next_event();
+			ec_to_fd()返回可用于poll()和select()调用的文件描述符
+				可能直接返回通道描述符
+			ec_next_event()返回下一个事件，改函数的调用可能引发read()和recv()的调用
+			
+	
+	5 I/O interface
+		
+		新的read(), send()接口需要带上事件通道
+		
+		调用会立即返回，有用的请求在排队，并且在完成时发送通知给事件通道
+		事件数据作为 event_data_t 的数据成员从通道返回，信号类型通过ev_type传递
+		成功，失败的信息存放在ev_result和ev_errno中
+		
+			int aio_send(struct aiocb *aiocbp, int flags);
+			int aio_sendto(struct aiocb *aiocbp, int flags, const struct sockaddr *to, socklen_t tolen);
+			int aio_sendmsg(struct aiocb *aiocbp, int flags);
+			int aio_recv(struct aiocb *aiocbp, int flags);
+			int aio_recvfrom(struct aiocb *aiocbp, int flags, struct sockaddr *to, socklen_t tolen);
+			int aio_recvmsg(struct aiocb *aiocbp, int flags);
+			
+	6 Advanced I/O interface
+		
+		改进的接口需要整合 DMA内存 
+
+			int dma_assoc(int sock, dma_mem_t mem, size_t size, unsigned flags);
+			int dma_disassoc(int sock, dma_mem_t mem, size_t size);
+			
+			int sio_reserve(dma_mem_t dma, void *memp_off, size_t size);
+			int sio_release(dma_mem_t dma, void *mem, size_t size);
+		
+		之前由内核分配缓冲区，现在由 应用程序调用dma_alloc()分配缓冲区
+			可能出现内存不连续的缺点，但是这种自由控制地址的功能是必要的
+		
+		网络接口是共享资源。
+			DMA缓冲区应该与套接字相关联
+				int dma_assoc(int sock, dma_mem_t mem, size_t size, unsigned int flags);
+				int dma_disassoc(int sock, dma_mem_t mem, size_t size);
+				这样可以通过动态增加额外缓冲区来应对网络流量增加
+			DMA缓冲和socket关联后，其他应用程序就无法使用这个缓冲区
+				当缓冲区数据可用的时候，内核要通知进程区读取
