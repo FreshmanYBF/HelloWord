@@ -1,0 +1,341 @@
+
+书中核心内容
+	Android系统框架结构
+	Java虚拟机和Dalvik虚拟机原理
+	程序编译和调试
+	Dalvik的运作流程和核心机制
+		DEX优化技术
+		安全管理的基础知识
+		Android虚拟机生命周期管理
+		虚拟机内存分配策略
+		虚拟机的垃圾收集机制
+		线程管理机制和框架
+	JNI层的原理和核心理念
+	JIT编译的基本过程
+
+
+Android框架
+	1、4层：OS | Libraries和Android RunTime | Application Framework | Application
+		OS：
+			Android使用Linux 2.6作为操作系统，包括 核心 和 驱动程序 两部分
+				驱动：
+					显示驱动；Flash内存驱动；照相机驱动；音频驱动；WiFi驱动；键盘驱动；蓝牙驱动；Binder IPC驱动；Power Management
+		Libraries和Android RunTime
+			Libraries：C库；SGL(2D图像引擎)；OpenGL；SQLite；WebKit
+			ART：虚拟机技术 —— Dalvik。Dalvik执行的是Dalvik可执行格式中的执行文件.dex
+	2、应用层序的生命周期
+		系统管理着进程，当这个进程有用时就执行；没有用时就回收
+		不同的应用程序组件是如何影响应用程序的生命周期的 —— Activity、Service和Intent Receiver
+		系统根据进程的重要性分级，来决定终止哪个进程 —— 排序如下
+			前台进程(Foreground)
+				不同的应用程序组件能够通过不同的方法将其宿主进程移到前台。
+					(1)屏幕最前端的Activity，它的onResume方法被调用
+					(2)Intent Receiver正在运行(IntentReceiver.onReceive方法正在执行)
+					(3)进程有一个服务Service，并且在服务的某个回调函数内有正在执行的代码(Service.onCreate, Service.onStart, Service.onDestroy)
+			可见进程(Visible)
+				可见进程有一个可被用户从屏幕上看到的活动，但不在前台(它的onPause方法被调用)
+			服务进程(Service)
+				服务进程拥有一个已经用startService方法启动的服务
+				系统将一直运行这些进程，除非内存不足以维持所有的前台进程和可见进程
+			后台进程
+				后台进程拥有一个当前用户看不到的活动(它的onStop方法被调用)。
+			空进程
+				不拥有任何活动的应用程序组件的进程
+				保留这种进程的唯一原因是在下次应用程序的某个组件需要运行时，不需要重新创建进程，这样可以提高启动速度
+	3、Android内核
+		Linux 2.6内核基础上运行，提供的核心系统服务包括安全、内存管理、进程管理、网络组和驱动模型等内容
+		Android运行库 —— Dalvik虚拟机
+			每个Android应用都运行在自己的进程上，享有Dalvik虚拟机为它分配的专有实例
+			Dalvik虚拟机执行Dalvik格式的可执行文件(.dex)
+				.dex可执行文件经过优化，将内存耗用降到最低
+				Java编译器将Java源文件转为class文件，class文件又被内置的dx工具转化为dex格式文件
+			Dalvik是运行在Linux中的，一些底层功能 —— 比如线程和低内存管理方面，Dalvik依赖Linux内核
+		Android内核和Linux内核的区别
+			(1)Android Binder。Linux系统上的应用层IPC采用消息总线的方式(D-bus, desktop bus); Android采用基于OpenBinder框架的一个驱动
+			(2)Android电源管理。
+			(3)低内存管理器(Low Memory Killer)。Linux使用OOM(Out Of Memory); Android的更灵活，可以根据需要杀死进程来释放需要的内存
+			(4)匿名共享内存
+			(5)Android PMEM(Physical)。PMEM用于向用户空间提供连续的物理内存区域 —— DSP和某些设备只能工作在连续的物理内存上
+			(6)Android Logger
+			(7)Android Alarm
+			(8)USB Gadget驱动
+			(9)Android Ram Console
+			(10)Android timed device。对设备进行定时控制功能
+		Android源码
+			Makefile
+			bionic
+			bootloader：引导加载器
+			build：编译和配置所需要的脚本工具
+			dalvik：JAVA虚拟机
+			development：程序开发所需的模板和工具
+			external：目标机器使用的一些库
+			frameworks：应用程序的框架层
+			hardware：与硬件相关的库
+			kernel：Linux 2.6的源代码
+			packages：Android的各种应用程序
+			prebuilt：Android的各种平台下编译的预置脚本
+			recovery：与目标的恢复功能相关
+			system：Android的底层的一些库
+		
+
+
+Dalvik虚拟机
+	1、Java虚拟机
+		运行时数据区域
+			Stack		Heap		Method Area
+			PC Register			Native Method Stack
+			   ||						||
+			Execution Engine 	->   Native Interface  ->  Native Libraries    
+		Java虚拟机的数据类型
+			byte, char(2字节无符号Unicode字符), short, int, float, long, double, object(reference), returnAddress
+		Java虚拟机的体系结构
+			Java虚拟机由五个部分组成
+				指令集：一个指令占一个字节
+				寄存器：Java程序计数器；指向操作数栈顶端的指针；指向当前执行方法的执行环境的指针；指向当前执行方法的局部变量区第一个变量的指针
+				栈：栈有三个区域。局部变量区；运行环境区 —— 包含动态链接，正常的方法返回，异常和错误传播等信息；操作数区
+				无用单元收集堆：堆是一个运行时数据区，类的实例从中分配空间。对于无用单元，进行垃圾回收
+				方法区：保存方法代码和符号表。
+		Java虚拟机的生命周期
+			启动一个Java程序的同时会诞生一个虚拟机实例，当该程序退出时，虚拟机实例也会随之消亡
+				如果在同一台计算机上同时运行三个Java程序，就会得到三个Java虚拟机实例
+				每个Java程序都运行在自己的Java虚拟机实例中
+				Java虚拟机实例通过调用某个初始类的main()方法来运行一个Java程序
+			Java虚拟机内部有两种线程：守护线程和非守护线程
+				守护线程：虚拟机自己使用，比如执行垃圾收集任务的线程
+						  Java程序也可以把它创建的任何线程标记为守护线程
+				非守护线程：main()
+						    当程序的所有非守护线程都终止时，虚拟机实例将自动退出
+	2、Dalvik虚拟机
+		支持.dex格式可执行文件
+			.dex格式是专为Dalvik设计的一种压缩格式，适合内存和处理速度有限的系统
+		Dalvik虚拟机是基于寄存器的 —— 指令更大；JVM是一种堆栈机器(基于栈的) —— 指令更多
+		
+		Dalvik架构
+			Android启动时，Dalvik VM会监视所有的程序，并创建依存树，为每个程序优化代码并存储在Dalvik缓存中
+				Dalvik VM第一次加载后会生成Cache文件，以供下次快速加载
+			Dalvik VM的架构
+							.class
+							   |
+					|		DX工具		|
+					|	Class Loader	|
+							: 字节码
+					|		解释器		|
+					|		内存管理	|
+					|		线程管理	|   
+					|		...			|		Dalvik虚拟机
+							:
+					|	Host OS(Linux)	|
+		和Java虚拟机的差异
+			虚拟机很小，使用空间也很小
+			早期DalvikVM没有使用JIT技术
+			Dalvik有自己的字节码；JVM使用Java字节码
+			DalvikVM基于寄存器；JVM基于堆栈
+			DalvikVM通过Zygote进行Class Preloading，Zygote会完成虚拟机的初始化
+			常量池只使用32位的索引，以简化解释器
+		Dalvik虚拟机的主要特征
+			.dex文件会整合多个.class文件，减少冗余信息
+			每一个Android应用都运行在一个Dalvik VM实例里，每一个Dalvik实例都是一个独立的进程空间
+			虚拟机的线程机制、内存分配和管理、Mutex等都是依赖于操作系统实现的
+			Zygote是一个虚拟机进程，同时也是一个虚拟机实例的孵化器
+				Zygote在系统启动时产生，它会完成虚拟机的初始化，库的加载，预置类库的加载和初始化等操作
+				Zygote通过复制自身，最快速地提供一个新的虚拟机实例
+		
+		通过 setprop 设置系统特性，来控制Dalvik VM行为	
+		
+		Android的初始化流程
+			Linux Kernel -> Init -> daemons | runtime | Zygote(Dalvik VM)
+	
+	3、Dalvik虚拟机的运作流程
+		（1）源码
+			dalvik/dalvikvm
+				创建一个虚拟机，并执行参数中指定的Java类 —— 一个Java程序对应一个Dalvik VM实例，即一个程序一个虚拟机
+				dalvikvm -cp 类路径 类名
+			dalvik/dvz
+				从Zygote进程中孵化出一个新的进程，新的进程也是一个Dalvik虚拟机
+				该进程与dalvikvm启动的区别在于该进程已经预装了Framework的大部分类和资源
+				dvz -classpath 包名称 类名
+			frameworks/base/cmds/app_process
+				Framework在启动时需要加载并运行两个特定类：ZygoteInit.java和SystemServer.java
+				app_process会启动运行这两个类，其本质就是 —— 使用 dalvikvm 启动 ZygoteInit.java，并在启动后加载Framework中的大部分类和资源
+		
+		（2）Dalvik虚拟机的初始化
+			初始化跟踪显示系统(调试)；初始化垃圾回收器；初始化线程列表和主线程环境参数；
+			分配内部操作方法的表格内存；初始化虚拟机的指令码相关的内容；分配指令寄存器状态的内存；
+			分配指令寄存器状态的内存；初始化虚拟机最基本用的Java库；初始化虚拟机使用的异常Java类库；
+			初始化虚拟机解释器使用的字符串哈希表；初始化本地方法库的表；初始化内部本地方法
+			初始化JNI调用表；缓存Java类库里的反射类
+		
+		（3）启动Zygote
+			Zygote进程是所有APK应用进程的父进程
+				启动Socket服务端口 —— 用于接收启动新进程的命令
+				加载preload-classes —— 即framework
+				加载preload-resources
+				使用fork启动新进程
+		
+		（4）启动SystemServer进程
+			SystemServer进程是Zygote孵化出的第一个进程
+			SystemServer中启动各种系统服务线程
+			
+		（5）启动ActivityManagerService(AMS)服务
+		
+	4、Class类文件的加载
+		.class文件  -(dx)->  .dex文件
+		（1）DexFile在内存中的映射
+		Dalvik使用mmap()将dex类型文件映射到内存中
+			DexFile —— 头部 + 索引 + 数据
+				   索引指示了 指令的位置(Class的位置) 和 数据的位置(ClassData的位置)
+			调用dexFileParse()函数对文件内容进行分析
+					用class的名字建一个hash表，方便快速查找
+			加载class文件
+				每一个Object中都有一个锁
+				将加载类用ClassObject来保存
+					directMethods
+					virtualMethods
+					sfields
+					ifields
+			解释然后执行类
+				.dex文件包含了所有的.class文件
+					dx工具对输入的所有class文件进行翻译、重构、解释程序的基本元素，即把它们编译成Dalvik字节码，然后写进.dex文件中
+				Dalvik虚拟机的解释器优化
+					Dalvik虚拟机的主要工作就是解释执行Dalvik虚拟机特有的dex字节码
+
+					
+					
+					
+					
+
+dex的优化和安全管理					
+	对于预置应用，可以在系统编译后，生成优化文件，以ODEX结尾
+	对于非预置应用，包含在APK文件里的dex文件会在运行时被优化，优化后的文件将被保存在缓存中
+	1、dex文件的格式
+		map_list —— {uint size; map_item[size] list;}
+			map_item —— {ushort type; ushort unused; uint size; uint offset;}
+				header_item
+				string_id_item
+				type_id_item
+				proto_id_item
+				field_id_item
+				method_id_item
+				class_def_item
+				map_list
+				type_list
+				annotation_set_ref_list
+				annotation_set_item
+				class_data_item
+				code_item
+				string_data_item
+				debug_info_item
+				annotation_item
+				encoded_array_item
+				annotation_directory_item
+	2、Dex和动态加载类机制
+		类加载器：动态加载插件；执行服务器上不可预知的代码；应用加密，执行时自解密
+		（1）类加载机制
+			Java虚拟机
+				通过自定义继承自ClassLoader的类加载器，然后通过defineClass方法来从一个二进制流中加载Class
+			Dalvik虚拟机
+				Android中ClassLoader的defineClass方法具体是调用VMClassLoader的defineClass本地静态方法
+				Android从ClassLoader派生出了两个类：DexClassLoader和PathClassLoader —— 重载了findClass方法
+					双亲委派模型
+						如果双亲类加载器已经加载则不重复加载
+					DexClassLoader和PathClassLoader通过DexFile类来实现类加载 —— 即识别dex文件，所以加载对象只能是dex或者包含dex文件的.apk/.jar文件
+						DexClassLoader支持.apk/.jar/.dex文件，并且会在指定的outpath路径释放出dex文件
+						PathClassLoader只支持直接操作.dex文件
+
+
+						
+生命周期管理
+	每个程序都在独立的Linux进程中运行；进程的生命周期由系统控制
+	1、Android程序的生命周期
+		进程和线程
+			一个组件可以在一个独立进程运行；也可配置多个组件在同一个进程运行
+			多个程序运行在一个进程 —— 多个程序共享一个UserID，使用process属性来指定进程名，使用同一个key来签名
+		进程类型
+			前台进程(Foreground)；可见进程(onPause)；服务进程(Service)；后台进程(Background)；空进程(Empty)
+		线程
+			Android中管理线程的方法
+				Looper：在线程中运行一个消息循环
+				Handler：传递一个消息
+				HandlerThread：创建一个带有消息循环的线程
+	2、Activity的生命周期
+		手机上重要界面会抢占当前页面(比如手机来电)；手机界面可以自由切换
+		（1）Activity的几种状态
+			Active(活动)：Activity在栈的顶端时，它是可见的，有“焦点”的前台Activity，用来响应用户的输入
+			Paused(暂停)：Activity可见，但是不拥有焦点，此时就是暂停的。不接受用户的输入事件
+			Stopped(停止)：Activity不可见，它就“停止”了
+			Inactive(销毁)：当一个曾经启动过的Activity被杀死时，它就变成Inactive。此时会从Activity栈中移除
+	3、Service的生命周期	
+		应用退出，Service进程没有结束，仍然在后台运行
+	4、广播的生命周期
+		
+
+
+内存分配策略
+	1、Java VM的内存分配管理
+		Java内存分配涉及区域：寄存器，堆，栈，静态域，常量池，非RAM存储
+		程序计数器；Java的虚拟机栈；本地方法栈；Java堆
+		方法区；运行时常量池
+		直接内存：DirectByteBuffer，实现Native堆和Java堆中数据的高效移动 —— Java堆中使用DirectByteBuffer直接引用Native内存
+		（1）栈和堆
+			栈
+				对象的引用，基础类型(byte, char, short, int, float, long, double, reference)
+				栈中的数据以栈帧(Stack Frame)的格式存在
+					栈帧是一个内存区块，是一个数据集 —— 有关方法和运行期数据的数据集
+					当一个方法A被调用时就产生了一个栈帧F1，F1被压入栈中，A方法又调用B方法，于是产生栈帧F2，F2也被入栈，执行完毕后弹出F2，再弹出F1
+					栈帧
+						本地变量：输入参数和输出参数以及方法内的变量
+						栈操作：记录出栈、入栈的操作
+						栈帧数据：类文件、方法等
+			堆
+				堆内存用来存放由关键字new创建的对象和数组
+		（2）常量池
+			编译期被确定，并保存在已编译的.class文件中的一些数据
+				基础数据类型
+				对象型的常量值(final)
+				以文本形式出现的符号引用
+					类和接口的全限定名
+					字段的名称和描述符
+					方法的名称和描述符
+					
+	2、检测内存泄露
+		截获住分配和释放内存的函数调用
+			将截获的指针放在list中管理
+				分配则将指针加入到list中
+				释放则删除该节点
+				list中没有被删除的节点就是那些没有释放的内存
+
+
+垃圾收集
+	对于不在被引用对象进行内存回收 —— 对象不可达 | 引用计数
+	1、收集算法
+		（1）标记-清除
+		（2）复制收集
+		（3）标记-整理
+	2、Android中的垃圾回收
+		（1）sp和wp简介
+			sp和wp被称为智能指针(strong pointer和weak pointer)
+				sp记录引用计数和地址
+				wp仅记录地址
+	3、Dalvik垃圾收集的三种算法
+		（1）引用计数
+		（2）标记-清除
+		（3）半复制
+			
+
+线程管理
+	1、Android的线程模型
+		开发者可以给两个应用程序分配相同的Linux用户ID
+			相同ID用户可以访问对方拥有的资源
+			拥有相同用户ID的应用程序可以运行在同一个进程中，共享一个Java虚拟机
+				使用android:sharedUserId，同时二者使用相同的私钥签署
+	
+	
+JIT编译
+	JIT —— just-in-time compilation，对代码的动态编译/翻译
+		JIT编译器是一个tracing JIT，主要以“trace”为单位来决定要编译的内容
+		
+	JIT技术：对多次调用的代码进行编译，当再次调用时使用编译后的机器码，而不是每次解释
+	
+	AOT —— Ahead of Time，程序下载到本地就编译成机器码，并存储到本地硬盘上
+	
+		
