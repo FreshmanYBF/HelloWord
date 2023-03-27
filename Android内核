@@ -1,0 +1,157 @@
+Android系统简介
+	分层
+		|		Application				|
+		|		Application Framework	|
+		|			Library and Runtime	|
+		|	Hardware Abstraction Layer	|
+		|				Linux Kernel	|
+	
+		Linux Kernel：IPC，外设管理，内存管理
+		Hardware Abstraction Layer：Linux Kernel提供的服务接口差异被该层掩盖
+		Library：Webkit，Libc，OpenGL ES，OpenMAX AL...
+		Android Runtime：
+		Application Framework：Activity，Notification，Window，Resource，Package；Content Providers；View System
+		Application：
+		
+	Android系统映像文件
+		boot.img：包含内核启动参数、内核等
+		ramdisk.img：文件系统
+		system.img：android系统的运行程序包(framework就在这里)，挂载在/system节点下
+		userdata.img：各种程序的数据存储所在，挂载在/data目录下
+		recovery.img：恢复模式所需的映像包
+		misc.img：miscellaneous，各种杂项资源
+		cache.img：缓冲区，挂载在/cache节点下
+	
+	反编译
+		APK/系统包  ->  dex/odex可执行文件 ->	jar包	->	源码
+		
+		
+Android编译
+		makefile依赖树
+			理解make的工作原理 —— make的工作原理？？？？
+				make不带任何参数
+					此时第一个符合要求的目标会被Make作为默认的依赖树根节点
+					所以在编写makefile时，一定要注意target的排放顺序
+				make程序
+					会对makefile中的内容按照排序进行逐条解析
+					按照规则生成所有依赖树
+					根据用户选择的依赖树，从叶到根逐步生成目标文件
+			大型的项目并不是简单链接，需要找到依赖关系，一行一行的读makefile文件只会“事半功倍”
+			
+		
+Android原理 —— 以五层架构为基础，操作系统基础为主线，在这个五层架构中寻找操作系统基础的线索
+	1、操作系统基础
+		CPU(控制与运算), 内存, I/O设备
+			哈佛结构：数据与指令分离，可同步读取
+		进程间通信
+			共享内存
+			管道
+			Android进程间通信的两大方式
+				Unix Domain Socket
+				Binder
+			RPC
+				Client：调用stub接口，接口对数据进行打包并执行系统调用，内核把数据发送服务端
+				Server：调用stub接口解包，并调用与数据报匹配的进程，将结果返回给客户端
+		同步机制
+			信号量
+			互斥量
+			管程
+			Android的同步机制
+				Mutex
+				Condition
+				Barrier
+		内存管理
+			虚拟内存
+				非实际内存，利用外设存储这个程序暂时不用的指令和数据
+				重要概念：逻辑地址；线性地址(段基地址+段内偏移)；物理地址
+			内存分配与回收
+				如何管理未使用的内存；分配的粒度；如何区别脏内存；何时回收；如何回收
+				Android的内存分配与回收
+					Native层
+						基本由C/C++编写，使用malloc/free, new/delete分配回收
+					Java层
+						Java语言编写
+			内存保护
+				访问的地址在内存之外则会触发保护
+			
+	2、Android进程/线程管理在5层架构中的表现
+		ActivityManagerService，Binder进程间通信
+			四大组件都是运行在同一个进程，并且都由主线程来处理事件
+				Activity和Service都是寄存与ActivityThread中，都需要两个Binder线程支持
+			Handler, MessageQueue, Runnable与Lopper
+				Runnable和Message被压入MessageQueue —— Runnable会被封装成Message
+				Looper循环从MessageQueue
+				Handler去处理Looper从MessageQueue中取出的Message
+			主线程通过这种事件处理机制来处理事件
+			其他进程可以通过IPC机制向主线程循环发送新事件
+		Binder —— IPC
+			Binder为通信双方的进程提供一个共享的内存映射空间，即A映射到Binder中，B也映射到Binder中
+			Binder概述
+				Binder驱动 —— 路由，将数据投递到目标
+				Service Manager —— 注册目标的地址，路由前进行查询
+				Binder Client —— 收发
+				Binder Server —— 收发
+				智能指针
+					通过智能指针的赋值操作传递引用计数，同时通过析构管理引用计数
+				Parcel(打包) —— IPC数据传递载体
+					Parcel打包A进程中的数据，通过Binder传到B进程中，B进程再解包
+			Binder驱动与协议
+				Binder Driver会把自己注册成一个misc device，并向上层提供一个/dev/binder节点
+					Binder驱动运行于内核态，可以提供open(), ioctl(), mmap()等常用的文件操作
+					misc设备，杂项设备，是字符类设备，主设备号是10
+				访问Binder驱动
+					binder_open()，binder_mmap()，binder_ioctl()
+			ServiceManager
+				该服务在init程序解析init.rc时启动，其本质是一个Binder Server
+				ServiceManager使用基于事件驱动的循环框架
+					等待Client发送的请求
+					从消息队列中读取消息 —— 实质是从Binder驱动那里获取消息
+					处理消息 —— binder_parse()来解析消息
+				如何能访问到Server
+					(1)Server在ServiceManager中注册(实名Server) —— 系统服务常用的方式。Client通过SM的getService()来获取Server的引用。
+					(2)通过其他Server作为中介 —— 实名Server为匿名Server提供访问它的接口，获取匿名者的Binder句柄。
+					
+			Binder Client
+				使用bindService建立联系
+			AIDL —— android接口描述语言
+				用来定义C/S通信接口的一种描述语言	
+	3、Android启动过程
+		启动必须经理的3个阶段：BootLoader，Linux Kernel和Android系统服务
+		init进程和init.rc
+			init进程解析init.rc脚本来构建系统的初始运行形态
+			系统关键服务
+				ServiceManager
+					所有的服务注册在ServiceManager中
+					Server通过Binder驱动为Client提供服务
+				Zygote(受精卵)
+					生成应用进程和系统进程。app_process会启动ZygoteInit，之后ZygoteInit会运行在Java虚拟机上
+					为系统服务的运行提供土壤
+				SystemServer
+					众多由Java语言编写的系统服务
+	4、管理Activity和组件运行状态的系统进程 —— AMS(Activity ManagerService) —— 没搞明白
+		AMS，ActivityStack，ActivityTask
+		AMS寄存于systemServer中，AMS会向ServiceManager登记多种Binder Server，其中“activity"由AMS实现，其他服务由其他类提供
+		AMS功能 —— 通过ActivityStack来记录、管理系统中的Activity(和其他组件)状态，并提供查询功能的一个系统服务
+			组件状态管理
+			组件状态查询
+			Task相关
+			其他
+		ActivityStack
+			管理当前系统中所有Activity状态的数据结构
+		ActivityTask
+			将众多系统组件跨进程地组成ActivityTask
+			
+	5、InputManager Service与输入事件
+		事件的分类
+			按键事件；触摸事件；鼠标事件...
+			投递流程
+				事件源->源信息采集->前期处理->WMS分配->应用程序处理
+		InputManagerService由SystemServer启动
+			InputReaderThread：不断地轮询相关设备节点是否有新的事件发生
+			InputDispatcherThread：注册监听事件，Dispatcher进行发现事件匹配时进行分发
+		
+	6、Intent的匹配规则
+		Intent —— 意图
+		Intent表示一种服务意愿，即我想要怎样
+			符合这种意愿的服务可能很多，也可能需要多个服务才能满足这个意愿
+		
