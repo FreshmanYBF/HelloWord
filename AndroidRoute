@@ -1,0 +1,280 @@
+
+iptables -> ip rule -> ip route 
+	数据发送先进入talbes，然后进入rule，然后找route
+	数据输入
+
+1、ip rule(策略路由) —— 首先通过策略找到路由表，即策略规则控制路由选择
+
+（1）概念
+
+	控制路由，选择数据发送的路由表
+	
+	策略项由选择器+动作组成
+		选择器：source address, destination address, incoming interface, tos, fwmark, 端口, 协议等
+		动作：下一跳, 输出设备
+
+	策略存在优先级, 值越小，优先级越高
+	
+	每条路由表规则可以有附加的属性
+		NAT和伪装规则有一个属性 —— 选择一个新的IP作为映射或伪装的IP
+		realms在路由没有选择任何附加属性时使用
+	
+	规则类型
+		unicast：单播。描述返回指定路由表中的返回路由
+		blackhole：丢弃包
+		unreachable：描述的是产生一个网络不可达错误
+		prohibit：描述“通信管理禁止”错误
+		nat：描述把源地址翻译成其他值
+	
+	内核默认路由规则
+		Priority: 0. 查找local路由表(255)
+		Priority: 32766. 查找main路由表(254)
+		Priority: 32767. 查找default路由表(253)
+
+（2）一些选项和操作
+
+	删除策略
+		一次调用均只能删除一条策略
+		ip rule del from ip
+		ip rule del to ip
+		ip rule del pref xxx
+		
+	from PREFIX
+	to PREFIX
+		
+	iif NAME
+		过滤出规则输入设备匹配的数据包
+	
+	oif NAME
+		过滤出规则输出设备匹配的数据包
+		
+	tos TOS
+	dsfield TOS
+		选择匹配的TOS值
+		
+	fwmark MARK
+		过滤出fwmark值匹配的数据包
+		from all fwmark 0xc0000/0xd0000 lookup legacy_system
+	
+	priority PREFERENCE
+		
+	suppress_prefixlength NUMBER
+		拒绝前缀长度小于等于NUMBER的数据包
+		即前缀长度小于等于NUMBER的数据报不使用该路由表
+		
+	suppress_ifgroup GROUP
+		拒绝使用属于GROUP接口组中的设备
+		
+	realms FORM/TO
+		路由表未使用任何realm时才使用TO
+	
+	nat ADDRESS
+		
+	ip rule flush
+		
+
+2、ip route
+	路由表管理
+	
+	ip [ip-OPTIONS] route {COMMAND}
+
+	ip route { add | del | change | append | replace } ROUTE
+		ROUTE := NODE_SPEC [ INFO_SPEC ]
+
+		   NODE_SPEC := [ TYPE ] PREFIX [ tos TOS ] [ table TABLE_ID ] [ proto
+				   RTPROTO ] [ scope SCOPE ] [ metric METRIC ] [ ttl-propagate {
+				   enabled | disabled } ]
+
+		   INFO_SPEC := NH OPTIONS FLAGS [ nexthop NH ] ...
+
+		   NH := [ encap ENCAP ] [ via [ FAMILY ] ADDRESS ] [ dev STRING ] [
+				   weight NUMBER ] NHFLAGS
+
+		   FAMILY := [ inet | inet6 | ipx | dnet | mpls | bridge | link ]
+
+		   OPTIONS := FLAGS [ mtu NUMBER ] [ advmss NUMBER ] [ as [ to ] ADDRESS ]
+				   [rtt TIME ] [ rttvar TIME ] [ reordering NUMBER ] [ window NUMBER ] [ cwnd NUMBER ] [ ssthresh REALM ] [ realms REALM ] 
+				   [rto_min TIME ] [ initcwnd NUMBER ] [ initrwnd NUMBER ] [ features FEATURES ] [ quickack BOOL ] [ congctl NAME ] 
+				   [ pref PREF ] [ expires TIME ] [ fastopen_no_cookie BOOL ]
+
+		   TYPE := [ unicast | local | broadcast | multicast | throw | unreachable
+				   | prohibit | blackhole | nat ]
+
+		   TABLE_ID := [ local| main | default | all | NUMBER ]
+
+		   SCOPE := [ host | link | global | NUMBER ]
+
+		   NHFLAGS := [ onlink | pervasive ]
+
+		   RTPROTO := [ kernel | boot | static | NUMBER ]
+
+		   FEATURES := [ ecn | ]
+
+		   PREF := [ low | medium | high ]
+
+		   ENCAP := [ MPLS | IP | BPF | SEG6 | SEG6LOCAL ]
+
+		   ENCAP_MPLS := mpls [ LABEL ] [ ttl TTL ]
+
+		   ENCAP_IP := ip id TUNNEL_ID dst REMOTE_IP [ tos TOS ] [ ttl TTL ]
+
+		   ENCAP_BPF := bpf [ in PROG ] [ out PROG ] [ xmit PROG ] [ headroom SIZE]
+
+		   ENCAP_SEG6 := seg6 mode [ encap | inline | l2encap ] segs SEGMENTS [ hmac KEYID ]
+
+		   ENCAP_SEG6LOCAL := seg6local action SEG6_ACTION [ SEG6_ACTION_PARAM ]
+
+		   ROUTE_GET_FLAGS :=  [ fibmatch  ]
+
+	ip route { show | flush } SELECTOR
+		SELECTOR := [ root PREFIX ] [ match PREFIX ] [ exact PREFIX ] [ table TABLE_ID ] [ vrf NAME ] [ proto RTPROTO ] [ type TYPE ] [ scope SCOPE ]
+
+3、iptables
+
+	管理员工具，用于IPv4/IPv6包过滤和NAT
+	
+	iptables -t table [option] chain rule-specification
+		iptables -t table [option] chain [matches...] [target]
+			chain有INPUT, OUTPUT, FORWARD
+	
+	iptables/ip6tables 被用于 set up, maintain, inspect IPv4/IPv6包过滤规则
+		table：表。内核中有内建的表
+			iptables --list 可以看到所有的链
+			iptables --list INPUT
+				target     prot opt source               destination
+				bw_INPUT   all  --  anywhere             anywhere
+				fw_INPUT   all  --  anywhere             anywhere
+			iptables --list OUTPUT
+				target     prot opt source               destination
+				oem_out    all  --  anywhere             anywhere
+				fw_OUTPUT  all  --  anywhere             anywhere
+				st_OUTPUT  all  --  anywhere             anywhere
+				bw_OUTPUT  all  --  anywhere             anywhere
+			Chain bw_INPUT (1 references)
+				target     prot opt source               destination
+				bw_global_alert  all  --  anywhere             anywhere
+				RETURN     esp  --  anywhere             anywhere
+				RETURN     all  --  anywhere             anywhere             mark match 0x100000/0x100000
+				MARK       all  --  anywhere             anywhere             MARK or 0x100000
+			Chain FORWARD (policy ACCEPT)
+				target     prot opt source               destination
+				oem_fwd    all  --  anywhere             anywhere
+				fw_FORWARD  all  --  anywhere             anywhere
+				bw_FORWARD  all  --  anywhere             anywhere
+				tetherctrl_FORWARD  all  --  anywhere             anywhere
+			链中都是一系列的规则，每个规则描述了匹配的包应该如何收发
+				ACCEPT, DROP, RETURN
+					ACCEPT：让匹配的包通过
+					DROP：丢掉匹配的包
+					RETURN：停止遍历此链表，并在上一个调用链中的下一个规则处恢复
+					
+		五个独立的tables —— iptables -t table -L -v 可以查看这些表
+			filter
+				过滤表，包含内建的链 
+						INPUT：用于指向本地套接字的数据包。即处理来自外部的数据
+						FORWARD：用于通过本地转发路由的数据报。将数据转发到本机的其他网卡设备上 —— forward转发
+						OUTPUT：用于本地生成的数据包。处理向外发送的数据
+			nat
+				当遇到创建新连接的数据包时，会查阅此表
+				内建了4个规则
+					PREROUTING: 更改进来的数据报。处理刚达到本机并在路由转发前的数据报。
+								它会转换数据包中的目标IP地址，通常用于DNAT(Destination NAT)
+					INPUT：
+					OUTPUT：处理本机产生的包
+					POSTROUTING：处理即将离开本机的数据包。它会转换数据包的源IP地址，通常用于SNAT(Source NATE)
+			mangle
+				用于特殊的数据报更改，用于指定如何处理数据包
+				PREROUTING, OUTPUT, INPUT, FORWARD, POSTROUTING
+			
+			raw
+				用于处理异常
+				给结合了NOTRACK的链路跟踪数据包配置豁免
+				它在具有更高优先级的网络过滤器挂钩处注册，因此在ip_conntrack或其他任何ip表之前被调用
+				内置规则链
+					PREROUTING(for packets arriving via any network interface)
+					OUTPUT(for packets generated by local processes)、
+			
+			security
+				Mandatory Access Control(MAC)，强制访问控制，比如用于SECMARK和CONNSECMARK目标
+				Linux安全模块实现，security在fliter表之后被调用，即在DAC(Destination Access Control)表之后
+				提供了3个内建规则链
+					INPUT(for packets coming into the box itself)
+					OUTPUT(for altering locally-generated packets before routing)
+					FORWARD(for altering packtets being routed through the box)
+					
+		规则 —— rule-specification
+			满足条件就执行目标中的规则或特定值；不满足条件就判断下一条规则
+			rule-specification = [matches...] [target]
+				match = -m matchname [per-match-options]：match包含了每个匹配的名字和选项
+				target = -j targetname [per-target-options]：target目标包含了目标的名字和选项
+			基础选项
+				-4：ipv4
+				-6：ipv6
+				[!] -p：--protocol protocol，协议可以是tcp, udp, udplite, icmp, icmpv6, esp, ah, sctp, mh, all
+				[!] -s: --source address[/mask][,...], address可以是一个网络，主机，网络地址/掩址。
+						Hostnames只会在规则提交给内核前解析一次
+						使用需要DNS解析的域名都是非常糟糕的
+				[!] -d: --destination address[/mask][,...]
+				-m, --match match: 指定使用一个match
+				-j, --jump target: target中特殊值的ACCEPT, DROP, QUEUE, RETURN, CONNMARK, MARK；target还可以是rule chain，比如INPUT, OUTPUT等
+				-g, --goto chain
+				[!] -i, --in-interface name: 要接收的包经过某个网口, 用于INPUT, FORWARD, PREROUTING规则链
+				[!] -o, --out-interface name: 要发送的包经过某个网口，用于FORWARD, OUTPUT, POSTROUTING规则链
+				[!] -f: --fragment
+				-c, --set-counters packets bytes：初始化数据报和字节计数器
+			扩展选项
+				--sport: 源端口 针对-p tcp 或 -p udp
+				--dport: 目的端口
+				--tcp-flags: 有效值可以是SYN, ACK, FIN, RST, URG, PSH, ALL, NONE
+				--icmp-type: 针对-p icmp, --icmp-type 0 表示echo reply, --icmp-type 8 表示echo
+				
+			
+（1）用法
+	iptables -t table [option] chain rule-specification
+	
+	iptables由上而下，由Tables，Chains，Rules组成
+	
+	
+（2）示例
+		target中的特殊值
+			ACCEPT —— 允许接收数据包
+			DROP —— 丢弃包
+			QUEUE —— 将数据报移交用户空间
+			RETURN —— 停止执行当前链中的后续rules，并返回调用链中
+			CONNMARK
+			MARK
+			
+		
+		追加iptables规则
+			iptables -A chain rule
+				iptables -A INPUT -i eth0 -p icmp -s srcip -j REJECT //响应端口不可达
+				iptables -A INPUT -i eth0 -p icmp -s srcip -j DROP  //无响应
+		
+		iptables -m match选项用法
+			iptables [-m name [module-options...]] [-j target-name [target-options...]]
+			
+				模块名称 —— name of module, 使用 iptables -m modoulename --help 可以看到这个模块支持的选项
+					addrtype
+						UNSPEC：未指定地址，比如0.0.0.0
+						UNICAST：单播地址
+						LOCAL：本地地址
+						BROADCAST：广播地址
+						ANYCAST：任何单播包
+						BLACKHOLE：黑洞地址
+						UNREACHABLE：不可达地址
+						PROHIBIT：a prohibited(禁止的) 地址
+						THROW
+						NAT
+						XRESOLVE
+						[!] --src-type type：指定源地址类型
+						[!] --dst-type type: 指定目的地址类型
+						--limit-iface-in: 包地址类型检查限制于输入的设备
+						--limit-iface-out: 包地址类型检查限制于输出的设备
+					ah
+						与IPsec数据包的身份验证标头中的SPIs匹配
+						[!] --ahspi spi[:spi]
+					connmar
+						[!] --m
+						iptables -R INPUT 3 -i eth0 -p icmp -s 10.6.123.11 -m connmark --mark 0x12232/0x43214 -j DROP
+					conntrack
+          
