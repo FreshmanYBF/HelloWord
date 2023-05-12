@@ -1,0 +1,24 @@
+#!/bin/sh
+
+netcards=`awk '{if ($1 ~/:$/)print $1}' /proc/net/dev`
+#netcards=`ifconfig -a | awk '{if($1 ~/:$/) print $1}'`
+
+for value in ${netcards[*]};do
+	netcard=${value%:*}
+	echo "${netcard}"
+	netcardip=`ifconfig ${netcard} | awk '{if($1 == "inet") {print $2}}'`
+	echo "${netcardip}"
+	if [ "${netcardip}" == "127.0.0.1" ];then
+		continue
+	fi
+	netlan=${netcardip%.*}
+	echo "${netlan}"
+	for i in {1..254};do
+		ip=${netlan}"."${i}
+		resping=`ping ${ip} -i 0.3 -c 2`
+		if [ $? -eq 0 ];then
+			echo "${netcard}, ${ip} is unused"
+			break
+		fi
+	done
+done
