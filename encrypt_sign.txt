@@ -1,0 +1,9 @@
+1、安卓签名
+pkcs8格式私钥生成jks签名文件
+1、openssl pkcs8 -in platform.pk8 -inform DER -outform PEM -out platform.priv.pem -nocrypt   将pk8 转成pem 格式文件
+2、openssl pkcs12 -export -in platform.x509.pem -inkey platform.priv.pem -out platform.pk12 -name {{KEY_ALIAS}}  生成pk12 文件
+3、keytool -importkeystore -destkeystore {{STORE_FILE_NAME}}.jks -srckeystore platform.pk12 -srcstoretype PKCS12 -srcstorepass {{KEY_PASSWORD}} -alias {{KEY_ALIAS}}  使用pk12文件输出jks 签名文件
+示例：
+openssl pkcs8 -in platform.pk8 -inform DER -outform PEM -out platform.priv.pem -nocrypt
+openssl pkcs12 -export -in platform.x509.pem -inkey platform.priv.pem -out platform.pk12 -name android
+keytool -importkeystore -destkeystore test.jks -srckeystore platform.pk12 -srcstoretype PKCS12 -srcstorepass 111111 -alias android
