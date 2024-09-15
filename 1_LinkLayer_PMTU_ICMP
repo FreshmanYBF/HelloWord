@@ -1,0 +1,152 @@
+
+PMTU是 IP数据报在路由中传输不会被分片的最大长度 —— 是IP数据报
+		链路的点对点之间是不会对IP数据报分片的，所以这个PMTU不包括链路层的首部
+		即PMTU是 IP数据报的长度 = IP首部 + IP数据
+		
+PMTU发现原理
+	（1）IP首部中的 DF 标志(禁止分片)
+	（2）ICMP的 “Datagram Too Big” 报文(需要修改协议，使用保留字段来表示Next-Hop MTU) —— 说明需要分片，报文中携带下一跳的MTU，此时路由器会丢弃该包
+	（3）目前的实践是使用：第一跳的MTU 或 576 作为最初的 PMTU
+	（4）PMTU是变化的 —— 网络拓扑可能在变，路由策略可能在变
+	（5）对于不支持PMTU检测的主机，即ICMP报文首部代码实现没有更改，要能够处理这种情况 —— 此时的Next-Hop MTU字段会被设置为0
+	
+	报文格式
+	|	Type = 3	|	Code = 4	|		Checksum		|
+	|		unused = 0				|	  Next-Hop MTU		|
+	|	Internet Header + 64 bits of Original Datagram Data |
+
+PMTU发现准则
+	（1）使用主机的 第一跳的MTU 或 576 作为最初的 PMTU
+	（2）PMTU的减小要尽可能快的检测到
+	（3）PMTU的增加不必快速检测到
+			在收到 “Datagram Too Big”(不能低于5分钟后检测) 或 “已经发送成功了一个增加的PMTU”(不能低于1分钟后检测) 之后进行检测，且检测的周期不要太小
+			建议以上情况在 10分钟后 或 2分钟后进行
+	（4）20字节IP首部 + 20字节TCP首部 + MSS(最大报文段, TCP字段) <= PMTU，所以TCP的MSS字段由IP去协商。
+		一般来说对于非本地目的主机，MSS可选字段的协商都是在 536(576 - 40)，但是大多数主机都不遵循这个规则
+		所以只需要保证 MSS + 40 不要大于 PMTU 
+	（5）PMTU的估算不能低于68字节(40 <= IP首部 + TCP首部 <= 120, 这里为什么使用68字节)；对于不支持 PMTU 的路由器，主机要能够处理它的响应报文
+	（6）响应 “Datagram Too Big” 报文的方式不是立即减小 PMTU，要有一定的缓冲策略 —— 因为路由在变，同时网络上的数据不一定都是可靠的(比如有骇客攻击, 或数据报过期)
+	（7）PMTU发现机制的ICMP 报文格式
+		|	Type = 3	|	Code = 4	|		Checksum		|
+		|		unused = 0				|	  Next-Hop MTU		|
+		|	Internet Header + 64 bits of Original Datagram Data |
+		
+		Next-Hop MTU 的值		40 + 28 
+		
+	（8）主机如何响应不支持 Next-Hop MTU 的 “Datagram Too Big” 报文
+		方案一：此时将 PMTU 设置为 576，并且停止置位 DF。这种方案错误率低，可以避免分片，但是并不能很好地提高网络效率
+		方案二：估算一个精确的 PMTU —— 修改PMTU，并设置DF，不断搜索最优的PMTU。
+				在这个过程中，好的策略能做到最少的丢包 —— “Datagram Too Big”会丢弃改包
+		方案三：使用数学方法 —— 通过乘法计算出一个值，比如 PMTU * 0.75等
+		方案四：对包大小进行二分查找 —— 这种方式收敛效率低
+		方案五：在一个常用的 MTU 组中，找一个最小值来使用。 —— 推荐使用，效率最高
+					将以前常用的MTU收集起来，当收到 “Datagram Too Big”时，IP数据报的长度字段大于当前PMTU，小于实际PMTU
+						可以作为数据集合收集起来，用来估算下一个PMTU
+				任何搜索方案都需要保存以前的缓存数据，来计算出下一个PMTU
+
+
+				
+PMTU实现方案
+	主要是一些建议
+		（1）哪一层或哪些层需要实现 PMTU探测
+		（2）PMTU信息缓存放在哪里
+		（3）如何移除老的PMTU信息
+		（4）传输层以及更高的应用层必须做什么
+	
+	1、Layering
+		如果让打包协议实现，则对于每个打包协议都要实现一遍，并且不同打包协议之间很难共享PMTU，面向连接的协议则很难缓存PMTU
+		IP层管理PMTU，ICMP获取PMTU，打包协议层(传输层)从IP层获取通过PMTU计算出来的MSS，以及决定是否设置DF位
+			有的协议不能改变报文大小，比如UDP上的报文；有的协议分片却能很好的运行
+	
+	2、Storing PMTU Information
+		PMTU保存在每个路由的入口
+		PMTU检测过程会更新这个路由入口绑定的MTU，并将该路由的第一跳的MTU作为假定的PMTU
+		当 “Datagram Too Big” 被收到，ICMP层计算出一个新的PMTU(通过Next-Hop MTU或上述的计算方法)
+			如果计算出来的路由关联的PMTU更小，就更新路由的PMTU，并通知到每个走该路由的打包协议层(UDP收到PMTU更改，则走改路由的TCP协议也会收到更改)
+			此时打包协议层根据PMTU更改MSS
+		当新的PMTU产生时需要通知打包协议层，当收到 “Datagram Too Big” 消息指明包被丢弃时要通知打包协议层进行重发
+			但是二者有着本地区别，PMTU改变可以延迟到打包协议层下一次要发送数据时通知
+			而重发需要立即通知打包协议层进行重发
+		
+	3、Purging stale PMTU information
+		网络拓扑是动态的，路由变化了，主机上路由关联的PMTU可能会过时
+			当老的PMTU太小时，没有机制能发现过时的小的PMTU
+		
+		所以当一个PMTU长时间没有被减小时，应该把这个路由的PMTU设置为路由下一跳的MTU
+			通知到打包协议层，这样就能重新触发PMTU发现过程
+			PMTU有效期可以通过在路由表入口增加一个时间戳来实现，如果没有保存时间戳可以使用超时时间周期来清理
+			
+		如果物理拓扑更改，或ICMP重定向，或其他导致主机路由失效，从而使得关联的PMTU失效，此时要通知到打包协议层
+		
+	4、TCP layer actions
+		
+		TCP层必须记录连接的路由轨迹的PMTU
+			TCP “慢启动” 中的一些值需要通过PMTU进行设置
+			“Datagram Too Big” 导致的包重发，不应该更改 TCP “拥塞窗口”，它应该触发慢启动。避免更多的包因为 “Datagram Too Big” 而重发
+			TCP因该存储对端发送过来的 MSS，并且自己发送的包不能大于这个 MSS 
+			使用PMTU发现机制，当PMTU发生改变时，TCP需要调整 “发送窗口” 的大小，确保其是 PMTU - 40 的整数倍 —— 发送窗口是发送段的整数倍可以提高TCP性能，反之则影响
+	5、Issue for other transport protocols
+		有些协议在重发的时候不允许修改报文大小，此时就需要不设置 DF 位
+		有些协议，比如NFS，其RPC协议的大小可能大于 PMTU，此时需要允许分片，不设置 DF 位
+		针对一些协议，其并需要遵守 PMTU 和 DF  
+	6、Management interface 
+		(1)设置指定路由不使用 PMTU发现机制 —— 在路由入口增加标志，有改变值则不设置 DF 位
+		(2)改变路由关联的PMTU值
+		(3)修改PMTU的存活期
+
+Likeyly values for PMTU 
+
+	维护PMTU常用表
+		对于实际的链路，其他MTU是确定的，针对不同的链路维护几个常用的PMTU，以供估算PMTU时进行选择
+
+	Plateau 			MTU			Comments
+						65535		Official maximum MTU 
+						65535 		Hyperchannel
+	65535				
+	32000							Just in case 
+						17914		16Mb IBM Token Ring
+	17914 				
+						8166		IEEE 802.4 
+	8166	
+						4464		IEEE 802.5 
+						4352		FDDI 
+	4352				
+						2048		Wideband Network
+						2002		IEEE 802.5 
+	2002				
+						1536		Exp. Ethernet Nets
+						1500		Ethernet Networks
+						1500		Point-to-Point 
+						1492		IEEE 802.3 
+	1492				
+						1006		SLIP
+						1006		ARPANET
+	1006				
+						576			X.25 Networks 
+						544			DEC IP Protal 
+						512			NETBIOS
+						508			IEEE 802/Source-Rt Bridge
+						508			ARCNET
+	508 				
+						296			Point-to-Point (low delay)
+	296
+	68								Official minimum MTU 
+		
+		
+	1、PMTU增加检测方法
+	
+		方案一：周期性的增加PMTU。这种方式简单，但是周期不能太频繁，代价时丢包
+		
+		方案二：从PMTU表中选出一个更大的PMTU，进行探测，直到选择到更精确的PMTU
+				PMTU增加探测的超时时间要大；PMTU减小探测的超时时间要小
+					比如一个PMTU较小时，设置10minutes的超时，这10minutes中可以稳定收发，不会收到 “Datagram Too Big”消息(指明丢包)
+										10minutes后，想要增加PMTU，可以设置超时为2minutes，超时后再增加PMTU，直到找到更合适的值
+				
+
+针对PMTU的安全考虑
+
+	PMTU发现机制，使得两种 “拒绝服务” 攻击成为可能 —— 基于向主机发送虚假的 “Datagram Too Big”
+
+	1、发送比实际PMTU更小的PMTU
+	2、发送比实际PMTU更大的PMTU
+	
