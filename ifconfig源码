@@ -1,0 +1,109 @@
+
+ioctl
+	SIOCGIFCONF				获取所有接口的清单		struct ifconf
+	SIOCGIFADDR				获取接口地址			struct ifreq
+	
+=====================================	
+				分析
+=====================================
+
+ifconfig源码目录结构
+
+	af_atalk.c
+	af_inet.c
+	af_inet6.c 
+	af_link.c 
+	carp.c 
+	ieee80211.c 
+	tunnel.c 
+	pfsync.c 
+	vlan.c
+这些源文件的共同点是：都实现了constructor函数
+					  在这个函数里面都注册了指令 —— 参数和接口
+					  即对于ifconfig来说，它可以实现很多工作
+						    除了get还有set
+							当参数匹配到某个分支时
+							则使用参数调用某个注册的接口
+	
+	ether.c 
+	media.c 
+	
+关于这些具体的功能是如何实现的还需要看Linux内核
+	
+	
+=====================================	
+	网络相关的函数和结构体
+=====================================	
+1、struct ifreq
+ioctl(fd, SIOCGIFCONF, (char *)))
+
+
+2、struct ifaddrs
+struct ifaddrs { 
+	struct ifaddrs *ifa_next; /* Next item in list */ 
+	char *ifa_name; /* Name of interface */ 
+	unsigned int ifa_flags; /* Flags from SIOCGIFFLAGS */ 
+	struct sockaddr *ifa_addr; /* Address of interface */ 
+	struct sockaddr *ifa_netmask; /* Netmask of interface */ 
+	union { 
+		struct sockaddr *ifu_broadaddr; /* Broadcast address of interface */ 
+		struct sockaddr *ifu_dstaddr; /* Point-to-point destination address */ 
+	} ifa_ifu; 
+	#define ifa_broadaddr ifa_ifu.ifu_broadaddr 
+	#define ifa_dstaddr ifa_ifu.ifu_dstaddr 
+	void *ifa_data; /* Address-specific data */ 
+};
+getifaddrs(struct ifaddrs **);  //使用后需要释放
+freeifaddrs(struct ifaddrs *);
+
+3、struct in6_ifreq
+
+
+4、struct sockaddr_in6
+
+5、struct ifmediareq
+似乎并不在标准里面
+ioctl : SIOCGIFMEDIA
+
+6、struct pfsyncreq 
+似乎是用来同步 carp 配置数据和状态的协议
+
+pfsync_get
+pfsync_set
+
+使用get和set两个接口实现数据的同步 —— 从哪里同步到哪里？是从外设同步到内存吗
+
+根据ifconfig设置网口属性的功能，这个pfsync可能是把内存数据同步到网卡上
+
+7、tunnel
+
+通道指的是什么？这里的通道用来做什么
+
+settunnel: 设置通道
+deletetunnel: 删除通道
+tunnel_status: 通道状态
+
+AF 是不是 Address Family 的缩写 —— 以太网地址，IP地址(IPv4和IPv6)
+
+
+=====================================	
+			一些概念
+=====================================
+
+1、CARP和carp
+
+VRRP：虚拟路由器冗余协议 —— 实现路由器的双机冗余
+CARP：通用地址冗余协议
+carp：carp表示一种虚拟设备，此设备提供对CARP协议的支持
+      carp 接口允许本地网络的（注意是同一网段,不能跨越路由器）多个机器来共享一个（一组）IP 地址。
+	  实际上的结果就是当一台该 IP 地址的主机在出现意外事故的情况下不能工作。
+	  其它的机器能够立刻自动的接替其工作。
+	  这一点对于防火墙系统来说提供冗余功能是非常不错的。
+	  目前的具有冗余功能的防火墙系统也只有 OpenBSD 系统。
+	  当然会有一个类似问题：即如何在核心内实现 IP 冒充技术。
+	  但只能是单向实现欺骗。
+	  对 carp 进行一些设置后它还能提供负载均衡功能
+
+	  
+	  
+

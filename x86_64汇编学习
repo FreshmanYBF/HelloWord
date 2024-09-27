@@ -1,0 +1,111 @@
+
+
+============================= 示例代码 ==========================
+============源代码
+#include <stdlib.h>
+int main(){
+        char *heap = (char *)malloc(1024);
+        int a = 0, b = 1;
+        a = a + 1;
+        b = a + b;
+        heap[0] = '1';
+        heap[1] = '2';
+        return 0;
+}
+
+============汇编代码
+file   "main.c"
+        .text
+        .globl  main
+        .type   main, @function
+main:
+.LFB5:
+		;cif(call fram info)
+        .cfi_startproc
+		;首先把 rbp 寄存器的值压入栈中
+		;rbp存放的是栈底指针
+		;这种push说明有对象调用 main() 函数
+		;应该是 __start 函数
+        pushq   %rbp
+		
+		;cfa(call func address)
+        .cfi_def_cfa_offset 16
+		
+        .cfi_offset 6, -16
+		;栈顶指针和栈底指针一致
+        movq    %rsp, %rbp
+		
+        .cfi_def_cfa_register 6
+		;栈指针向下移动16
+		;这一步要干啥没看懂 —— 分配16 byte栈帧空间
+		;传统的栈空间的利用操作是使用一个栈空间，进行一次push操作
+		;代码中是利用分配好的 16字节 的空间，以空间缩减进行分配
+        subq    $16, %rsp
+		;把1024放入到 %edi中
+        movl    $1024, %edi
+        call    malloc@PLT
+		;%rax放的是函数调用的返回结果
+		;把malloc返回的指针值放在了 %rbp - 8的地址往上数4个字节的空间中
+        movq    %rax, -8(%rbp)
+		; a = 0, 为什么放在 -16的位置, 而不是 -12的位置
+		; a = 0, 比 b = 1先声明
+        movl    $0, -16(%rbp)
+        movl    $1, -12(%rbp)
+		; a = a + 1, 存在自加指令
+        addl    $1, -16(%rbp)
+		; b = a + b
+		; 先把 a 放到累加器中
+        movl    -16(%rbp), %eax
+		; 把 a 的值加到 b 中
+        addl    %eax, -12(%rbp)
+		; 把 heap 的值存放在 %rax 中
+        movq    -8(%rbp), %rax
+		; heap[0] = '0';
+        movb    $49, (%rax)
+		; 把 heap 的值存放在 %rax 中
+        movq    -8(%rbp), %rax
+		; 指针向前移动一位
+        addq    $1, %rax
+		; heap[1] = '1'
+        movb    $50, (%rax)
+		; 把累加器清零, 因该是存放 main() 函数的范围值
+		; 实际试验, return 1;时, 就变成了 movl $1, %eax
+        movl    $0, %eax
+        leave
+        .cfi_def_cfa 7, 8
+        ret
+        .cfi_endproc
+.LFE5:
+        .size   main, .-main
+        .ident  "GCC: (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0"
+        .section        .note.GNU-stack,"",@progbits
+
+
+==============================================================
+
+1、x86_64寄存器
+
+	在所有的体系架构中，每个寄存器都有建议的使用方法，
+	编译器在对代码进行编译时，也通常按照体系架构建议的寄存器使用方法进行编译
+
+（1）16个64位通用寄存器
+
+%rax：通常存储函数调用的返回结果，也被用在 idiv 和 imul 命令中
+%rbx：杂用
+%rcx：第四参数寄存器
+%rdx：第三参数寄存器，也用于 idiv 和 imul
+
+%rsp：堆栈指针寄存器，指向栈顶位置
+%rbp：栈帧指针，标识当前栈帧的起始位置
+
+%rsi：第二参数寄存器
+%rdi：第一参数寄存器
+%r8：第五参数寄存器
+%r9：第六参数寄存器
+%r10：
+%r11：
+%r12~%r15：
+
+当参数少于7个时，参数从左到右依次放入寄存器：%rdi，%rsi，%rdx，%rcx，%r8，%r9
+
+

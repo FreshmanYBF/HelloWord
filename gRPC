@@ -1,0 +1,138 @@
+
+1、grpc/examples/cpp/helloworld/
+
+从helloworld来分析gRPC：
+	（1）首先根据 helloworld.proto 生成对应的 .cpp/.cc 源文件
+	（2）将生成的 .cpp/.cc 源文件编译成库 hw_grpc_proto.a 
+	（3）将 hw_grpc_proto.a，和 {grpc++_reflection, libprotobuf, grpc++} 一起链接到可执行文件上 —— 包括client和server
+	（4）执行 server, 执行 client
+	
+修改 helloworld.proto
+	如何增加一个新的 server 服务
+		首先在 helloworld.proto 的 Greeter 里面 增加一个接口
+		服务器和客户端存根都有一个SayHello()RPC方法，该方法从客户端获取HelloRequest参数并从服务器返回HelloReply
+		编译生成新的protoc处理程序，链接到server和client上
+		在server中增加新的服务接口，并注册；在client中增加新的请求接口，并调用
+
+
+
+2、gRPC有什么优点？protocol buffer有什么优点？使用HTTP和TCP不行吗？
+
+
+即时通信
+
+（1）protocol buffers -- PB协议
+	结构化数据序列化 —— 可用于通讯，数据存储
+	
+	优点：
+		快 —— 二进制协议，相比如JSON这样的数据序列化文本协议，二进制协议更快
+		
+（2）.proto文件的编写，编译 —— 即存在语法，语义和编译器
+	
+	a、在一个.proto文件中定义你需要做串行化的数据结构信息
+		消息
+			消息至少有一个字段组合而成
+				字段格式：限定修饰符 数据类型 字段名称 = 字段编码值 [字段默认值]
+			message HelloRequest {
+				string name = 1;
+			}
+		限定修饰符：required，必选；optional，可选；repeated，可以包含0~N个元素
+		数据类型：bool，double，float，int32，uint32，int64，uint64，sint32，sing64，fixed32，fixed64，sfixed32，sfixed64，string，bytes，enum，message
+		字段编码值：编码值的取值范围1~2^32，其中1~15的编码时间和空间效率最高；1900~2000编码值为Google protobuf系统内部保留
+	
+	b、其他
+		import
+			protobuf接口文件可以像C语言的h文件一样，分离为多个，需要的时候通过import导入
+		package
+			避免名称冲突，每个文件指定一个package名称，对于C++解析为名称空间
+		enum
+			枚举的定义和C++相同，但是有一些限制：枚举值必须大于等于0的整数；使用分号分隔枚举变量
+	
+	c、编译pb文件
+		使用protoc程序编译pb文件，可以选择编译后的输出文件类型
+		以C++为例
+			proto中的package在C++中是namespace
+			proto中的message在C++中是class，类里面有各个成员的set/get；基类是google::protobuf::Message
+			代码中可以看到C++11的移动构造和移动赋值函数
+			
+	
+（3）gRPC
+	gRPC使用 protocol buffers 作为自己的接口定义语言(DL)和底层消息交换格式(PB协议)
+	客户端应用程序可以直接调用另一台计算机上服务器应用程序上的方法，可以更容易地创建分布式应用程序和服务
+	
+	核心概念
+		a、Service Definition
+			使用protocol buffers作为DL，描述Service interface 和 消息载荷
+			
+			gRPC可以定义四种服务方法
+				rpc SayHello(HelloRequest) returns (HelloResponse);
+				rpc LotsOfReplies(HelloRequest) returns (stream HelloResponse);
+				rpc LotsOfGreetings(stream HelloRequest) returns (HelloResponse);
+				rpc BidiHello(stream HelloRequest) returns (stream HelloResponse);
+		
+		b、Synchronous vs Asynchronous
+			
+		c、RPC life cycle
+		
+		d、RPC life cycle
+		
+		e、Unary RPC，Server stream RPC，Client stream RPC，Bidirectional stream RPC
+		
+		f、Deadlines/Timeouts	
+	
+		g、RPC termination
+		
+		h、Canceling an RPC
+			Either the client or the server can cancel an RPC at any time. A cancellation terminates the RPC immediately so that no further work is done.
+		i、Metadata
+		
+		j、Channels
+		
+	
+（4）为什么要用gRPC
+	高效，简单的IDL，容易升级 —— 协议变更
+	
+
+3、gRPC Instance
+
+（1）grpc/examples/cpp/helloworld/greeter_client.cc和greeter_server.cc
+pb定义了协议的格式，存在protocol buffers对请求进行序列化，对请求进行反序列化，对响应进行序列化，对响应进行反序列化
+.proto文件中定义了 
+	service SERVICE{ 
+		rpc interface1(input) returns (output){}
+		rpc interface2(input) returns (output){}
+	}
+	message input{
+	
+	}
+	message output{
+	
+	}
+server:
+	首先会生成SERVICE类，所有的rpc接口会成为SERVICE类的纯虚函数
+	还会生成SERVICE的StubInterface类，所有的rpc接口都会成为StubInterface类的纯虚函数
+	还会生成StubInterface的Stub类，继承StubInterface类，实现所有虚函数——调用grpc和protocol buffers的接口把数据发送过去
+	
+	server端需要继承SERVICE类，并实现所有纯虚接口——SERVICE_IMPL
+	把SERVICE_IMPL实例注册到ServerBuilder中——ServerBuilder.RegisterService
+	启动服务，SERVICE_IMPL实例等待client端调用
+	
+client:
+	构造rpc接口所需要的参数，调用Stub的rpc接口
+
+
+（2）grpc/examples/cpp/helloworld/greeter_async_client.cc, greeter_async_client2.cc和greeter_async_server.cc
+异步API，有两种
+	client
+		gRPC使用 CompletionQueue API实现异步操作，具体流程如下：
+			绑定 CompletionQueue 到一个 RPC调用
+			进行读或写——用一个独特的标志 void* tag呈现
+			调用 CompletionQueue::Next 去等待操作完成，如果 tag 出现，它指示操作已经完成
+	server
+		构建一个服务器：导出异步服务
+		Request一个RPC调用，提供一个唯一的tag
+		等待CompletionQueue返回tag——一旦返回，context，request，responder准备就绪
+		CompletionQueue返回tag，RPC调用完成
+	如果要实现服务端处理多个请求，还要做一些其他处理
+
+	
