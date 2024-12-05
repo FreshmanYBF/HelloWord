@@ -1,0 +1,85 @@
+
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<title></title>
+		<link href="" rel="" type=""/>
+	
+	</head>
+	
+	<body>
+		<div id="">
+			<h1></h1>
+			<div id="" class="">
+				<h2></h2>
+				<span id="">
+					<a href=""></a>
+				</span>
+				<br class=""/>
+			</div>
+		</div>
+		<div id="">
+			<p></p>
+			<ul>
+				<li></li>
+			</ul>
+			<pre></pre>
+			<img id="" src="" alt="" />
+		</div>
+	</body>
+	
+</html>
+
+html
+元素
+	<h1>-<h6>：标题
+	<p></p>：段落
+	<a href=""></a>：链接
+	<img src="" width="" height=""/>
+	<br/>：用于定义换行
+	<head></head>: <meta> 描述文档的描述，关键词，作者，字符集
+				   <base href=""/> 定义所有链接的URL
+				   <title></title>
+	<img src="" alt=""></img>: src表示图片源, alt表示图片异常时的可替换文本
+	<form action="" method="">: action用于定义这个form表单要提交到哪个URL上
+		<input type="text" size="20" name="firstname">
+		<input type="submit" value="">: submit会触发这个action
+	</form>
+	
+属性值
+	class: 为元素定义一个或多个类名(类名从样式文件引入)
+	id: 定义元素的唯一id
+	style: 规定元素的行内样式
+	title: 描述元素的额外信息
+
+标签: 可独立存在的东西
+	<!--  -->注释
+	<!DOCTYPE>: 定义文档类型，例如 <!DOCTYPE html>
+	
+CSS：
+	内联样式：个别元素需要特殊样式，元素内部，使用style属性
+			<element style=""></element>
+	内部样式表：单个文件需要特别样式
+		在<head>部分通过<style>标签定义
+			<head>
+				<style type="text/css">
+					body {background-color:yellow;}
+					p {color:blue;}
+				</style>
+			</head>
+	外部样式表：样式需要被应用到很多页面时
+		在<head>中使用<link>标签
+			<head>
+				<link rel="stylesheet" type="text/css" href="mystyle.css"/>
+			</head>
+		
+区块
+	<div>和<span>
+	HTML可以通过<div>和<span>把将元素组合起来
+	块级元素：
+		浏览器显示时，通常以新行开始和结束
+	内联元素：
+		显示时不会以新行开始，比如<a>，<img>
+		
+
+	

@@ -1,0 +1,77 @@
+
+JSP：JavaServerPage
+	动态网页技术标准：根据请求内容，动态地生成HTML、XML或其他格式文档的Web网页，然后返回给请求者
+	以Java语言为脚本语言，可以html元素中嵌入Java代码，用来动态生成内容
+	使用JSP编译器进行编译，生成二进制机器码(字节码)或二进制码(二进制码)
+
+CGI：Common Gateway Interface
+	外部程序规范
+	可以用任何程序编写CGI——C、C++、Java、VB和Delphi
+	
+JSP架构
+	网络服务器需要一个JSP引擎，也就是一个容器来处理JSP页面
+		容器负责截获JSP页面的请求
+	JSP处理过程：
+		浏览器发送一个HTTP请求给服务器
+		服务器识别出这是一个JSP网页的请求，并将请求传递给JSP引擎
+		JSP引擎从磁盘中载入JSP文件，然后将它们转化为Servlet
+		JSP将Servlet编译成可执行类，并且将原始请求传递给Servlet引擎
+		Web服务器执行这些类，将结果以HTML网页的形式返回给浏览器
+		
+	JSP声明周期
+		从创建到销毁 —— 文件到可执行类，可执行类到对象实例，对象销毁
+		jspInit()：容器载入jsp文件后，为请求提供任何服务前，调用jspInit()方法
+		_jspService()：当JSP网页完成初始化后，将调用_jspService()，其需要一个HttpServletRequest对象和一个HttpServletResponse对象
+			对于.jsp脚本，request对象和reponse对象在请求到来时就已经有了，所以在.jsp脚本中可以直接使用
+		jspDestroy()：回收资源，比如释放链接，关闭文件等
+		对于 jspInit()和jspDestroy() 方法可以重写
+		
+中文编码问题：
+	<%@ page language="java" contentType="text/html; charset="UTF-8" pageEncoding="UTF-8" %>
+	
+	
+1、语法
+
+（1）脚本程序
+脚本程序可以包含任意量的Java语句、变量、方法或表达式，只要它们在脚本语言中是有效的
+语法格式：
+	<% 代码片段 %>
+	<jsp:scriptlet>代码片段</jsp:scriptlet>
+任何文本、HTML标签、JSP元素必须写在脚本程序外面
+
+（2）JSP声明
+声明语句可以声明一个或多个变量、方法
+语法格式：
+	<%! declaration; [ declaration; ]+ .. %>
+	<jsp:declaration> 代码片段 </jsp:declaration>
+
+（3）JSP表达式
+JSP表达式中包含的脚本语言表达式，先被转成String，然后插入到表达式出现的地方
+表达式元素不能使用分号来结束
+语法格式：
+	<%= 表达式 %>
+	<jsp:expression>表达式</jsp:expression>
+
+（4）JSP注释
+<%-- --%>
+
+（5）JSP指令
+JSP指令用来设置与整个JSP页面相关的属性
+语法格式：
+	<%@ directive attribute="value" %>
+有三种指令标签
+	<%@ page ... %>: 定义页面的依赖属性，比如脚本语言、error页面、缓存需求等等
+	<%@ include ... %>: 包含其他文件
+	<%@ taglib ... %>: 引入标签库的定义，可以式自定义标签
+	
+（6）JSP隐含对象
+	request: HttpServletRequest实例
+	response: HttpServletResponse实例
+	out: PrintWriter实例
+	session: HttpSession实例
+	application: ServletContext实例，与应用上下文有关
+	config: ServletConfig实例
+	pageContext: PageContext实例，提供对JSP页面所有对象以及命名控件的访问
+	page: 类似Java类中的this关键字
+	exception: exception类对象，代表发生错误的JSP页面中对应的异常对象
+	

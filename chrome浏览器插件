@@ -1,0 +1,112 @@
+
+插件原理：
+	向页面注入javascript脚本
+	
+开发插件需要使用的前端技术：
+	html，css，javascript
+
+Chrome Extension
+	由HTML、CSS、JS、图片资源组成的一个.crx后缀的压缩包
+
+	
+1、插件构成
+
+chrome插件组成部分：
+	（1）manifest.json
+		相当于插件的meta信息，包含插件的名称、版本号、图标、脚本文件名称等
+		放在根目录，罗列所有配置
+	（2）background script
+		可以调用全部chrome插件API，实现跨域请求、网页拦截、弹出chrome通知消息等功能
+	（3）功能页面
+		包括点击插件图标弹出的页面（简称popup）、插件的配置页面（简称options）
+	（4）content script
+		插件注入到页面的脚本，但是不会体现在页面的DOM结构里。
+		content script可以操作DOM，但是它和页面其他的脚本时隔离的，访问不到其他脚本定义的变量、函数等
+		content script可以调用有限的chrome插件API，网络请求收到同源策略限制
+			
+2、Chrome插件API
+
+（1）书签控制
+（2）下载控制
+（3）窗口控制
+（4）标签控制
+（5）网络请求控制，各类事件监听
+（6）自定义原生菜单
+（7）完善的通信机制
+....
+
+
+
+3、开发
+
+功能需求：
+	（1）能够过滤URL
+	（2）能够显示固定的内容
+	（3）能够添加自己的内容
+	（4）层次结构 —— 分为一级主题，二级主题，三级主题等
+
+设置->更多工具->扩展程序
+	勾选“开发者模式”，这样可以以文件夹的形式直接加载插件，否则只能安装.crx格式的文件
+
+（1）manifest.json
+	清单文件
+	用于罗列 background content_scripts permissions 等配置资源
+	属性值：
+		manifest_version: chrome插件清单文件版本
+		name: 插件名称
+		version: 插件版本
+		
+		description: 插件描述 
+		icons: 图标
+			{
+				"size":"local_url"
+			}
+		
+		background: 后台常驻页面/脚本
+			{
+				"page":"background.html"
+				"scripts": ["js/background.js"]
+			}
+		
+		"content_scripts":{
+			{
+				"matches":["<all_urls>"],  //匹配URL
+				"js":["js/content-script.js"],  //JS脚本
+				"css":["css/custom.css"],  //CSS
+				"run_at":"document_start"  //代码注入时间，document_start，document_end，document_idle
+			}
+		}
+		
+		"permissions":[
+			"contextMenus",  //右键菜单
+			"tabs",  //标签
+			"notifications",  //通知
+			"webRequest",  //web请求
+			"webRequestBlocking",
+			"storage"  //插件本地存储
+		]
+	
+（2）content-scripts
+	chrome插件向页面注入脚本的一种形式
+	content-scripts和原始页面共享DOM，不共享JS
+	
+（3）background
+	常驻页面，随浏览器的打开而打开，随浏览器关闭而关闭
+	可以调用所有的Chrome扩展API
+	
+	
+（4）event-pages
+	需要时被加载，空闲时被关闭
+	
+（5）popup
+	点击 browser_action 或者 page_action 图标时打开的一个小窗口网页，焦点离开网页就立即关闭
+	popup可以包含任意你想要的HTML内容，并且会自适应大小
+	
+	"browser_action":{
+		"default_icon":"",
+		"default_title":"",
+		”default_popup":"popup.html"
+	}
+	
+（6）injected-script
+	通过DOM操作的方式向页面注入的一种JS
